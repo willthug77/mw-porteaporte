@@ -24,46 +24,58 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <span className="text-2xl font-bold">MW</span>
+    <div style={{ minHeight: '100vh', background: '#0A0F1E', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      
+      {/* Background gradient */}
+      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse at top, #1a2744 0%, #0A0F1E 70%)', zIndex: 0 }} />
+      
+      <div style={{ width: '100%', maxWidth: 380, position: 'relative', zIndex: 1 }}>
+        
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 80, height: 80, background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', borderRadius: 24, marginBottom: 20, boxShadow: '0 8px 32px rgba(37,99,235,0.4)' }}>
+            <span style={{ color: 'white', fontWeight: 900, fontSize: 28, letterSpacing: -1 }}>MW</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">MW Multiservices</h1>
-          <p className="text-slate-400 mt-1 text-sm">Porte-à-porte terrain</p>
+          <h1 style={{ color: 'white', fontWeight: 800, fontSize: 26, margin: 0, letterSpacing: -0.5 }}>MW Multiservices</h1>
+          <p style={{ color: '#64748B', marginTop: 6, fontSize: 14 }}>Application terrain — Porte-à-porte</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        {/* Form */}
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Adresse email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-4 text-white text-base placeholder-slate-500 focus:outline-none focus:border-blue-500"
             required
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '16px 18px', color: 'white', fontSize: 16, outline: 'none', width: '100%' }}
           />
           <input
             type="password"
             placeholder="Mot de passe"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-4 text-white text-base placeholder-slate-500 focus:outline-none focus:border-blue-500"
             required
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '16px 18px', color: 'white', fontSize: 16, outline: 'none', width: '100%' }}
           />
-          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+
+          {error && (
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '10px 14px', color: '#FCA5A5', fontSize: 14 }}>
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl text-base transition-colors disabled:opacity-50"
-          >
+            style={{ background: loading ? '#334155' : 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: 'white', fontWeight: 700, padding: '17px', borderRadius: 14, fontSize: 16, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4, boxShadow: loading ? 'none' : '0 4px 20px rgba(37,99,235,0.4)' }}>
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
         </form>
 
-        <p className="text-center text-slate-500 text-sm mt-6">
+        <p style={{ textAlign: 'center', color: '#475569', fontSize: 14, marginTop: 24 }}>
           Pas de compte ?{' '}
-          <a href="/signup" className="text-blue-400 font-medium">Créer un compte</a>
+          <a href="/signup" style={{ color: '#60A5FA', fontWeight: 600, textDecoration: 'none' }}>Créer un compte</a>
         </p>
       </div>
     </div>
