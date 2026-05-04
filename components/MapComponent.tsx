@@ -40,7 +40,7 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
-if (mapRef.current._leaflet_id) return
+if ((mapRef.current as any)._leaflet_id) return
 
     const initMap = async () => {
       const L = (await import('leaflet')).default
