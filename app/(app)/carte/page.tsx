@@ -21,7 +21,7 @@ export default function CartePage() {
   const [profile, setProfile] = useState<any>(null)
   const [doors, setDoors] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [formCoords, setFormCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [formCoords, setFormCoords] = useState<{ lat: number; lng: number; address: string } | null>(null)
   const [selectedDoor, setSelectedDoor] = useState<any>(null)
 
   useEffect(() => {
@@ -49,8 +49,8 @@ export default function CartePage() {
     return () => { supabase.removeChannel(channel) }
   }, [loadDoors])
 
-  const handleLongPress = useCallback((lat: number, lng: number) => {
-    setFormCoords({ lat, lng })
+  const handleLongPress = useCallback((lat: number, lng: number, address: string) => {
+    setFormCoords({ lat, lng, address })
     setShowForm(true)
   }, [])
 
@@ -58,12 +58,31 @@ export default function CartePage() {
     setSelectedDoor(door)
   }, [])
 
+  const getAddress = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`,
+        { headers: { 'User-Agent': 'MW-Porteaporte/1.0' } }
+      )
+      const data = await res.json()
+      if (data.address) {
+        const a = data.address
+        const num = a.house_number || ''
+        const rue = a.road || ''
+        const ville = a.city || a.town || a.village || ''
+        return `${num} ${rue}, ${ville}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')
+      }
+    } catch (e) {}
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+  }
+
   const handleFormSave = async (formData: any) => {
     if (!profile || !formCoords) return
     await supabase.from('doors').insert({
       user_id: profile.id,
       latitude: formCoords.lat,
       longitude: formCoords.lng,
+      address: formCoords.address,
       ...formData,
     })
     setShowForm(false)
@@ -90,10 +109,17 @@ export default function CartePage() {
       {/* Bouton ajouter */}
       <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
         <button
-          onClick={() => {
+          onClick={async () => {
             navigator.geolocation.getCurrentPosition(
-              pos => { setFormCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setShowForm(true) },
-              () => { setFormCoords({ lat: 45.45, lng: -73.45 }); setShowForm(true) }
+              async pos => {
+                const address = await getAddress(pos.coords.latitude, pos.coords.longitude)
+                setFormCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude, address })
+                setShowForm(true)
+              },
+              () => {
+                setFormCoords({ lat: 45.45, lng: -73.45, address: '' })
+                setShowForm(true)
+              }
             )
           }}
           style={{ background: '#2563EB', color: 'white', fontWeight: 700, padding: '16px 32px', borderRadius: 20, fontSize: 16, border: 'none', cursor: 'pointer', boxShadow: '0 8px 32px rgba(37,99,235,0.4)', display: 'flex', alignItems: 'center', gap: 8 }}>
