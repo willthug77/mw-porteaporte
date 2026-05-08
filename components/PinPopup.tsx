@@ -1,83 +1,102 @@
 'use client'
+import { X, Phone } from 'lucide-react'
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pas_repondu: { label: 'Sans réponse', color: '#64748B' },
-  pas_interesse: { label: 'Pas intéressé', color: '#EF4444' },
-  interesse: { label: 'Intéressé', color: '#F97316' },
-  a_rappeler: { label: 'À rappeler', color: '#EAB308' },
-  soumission: { label: 'Soumission', color: '#3B82F6' },
-  vendu: { label: '✓ Vendu', color: '#10B981' },
+const STATUS_LABELS: Record<string, { label: string; bg: string; color: string }> = {
+  pas_repondu:   { label: 'Sans réponse',   bg: '#F3F4F6', color: '#6B7280' },
+  pas_interesse: { label: 'Pas intéressé',  bg: '#FEE2E2', color: '#991B1B' },
+  interesse:     { label: 'Intéressé',      bg: '#FEF3C7', color: '#92400E' },
+  a_rappeler:    { label: 'À rappeler',      bg: '#FEF3C7', color: '#92400E' },
+  soumission:    { label: 'Soumission',      bg: '#E8F8F8', color: '#0D6E6F' },
+  vendu:         { label: '✓ Vendu',         bg: '#D1FAE5', color: '#065F46' },
 }
 
 const SERVICE_LABELS: Record<string, string> = {
-  vitres_ext: 'Lavage vitres ext.',
+  vitres_ext:     'Lavage vitres ext.',
   vitres_int_ext: 'Lavage vitres int./ext.',
-  gouttières: 'Lavage gouttières',
-  paysager: 'Entretien paysager',
-  pave_uni: 'Pavé uni',
-  tourbe: 'Pose de tourbe',
-  plates_bandes: 'Plates-bandes',
-  autre: 'Autre',
+  gouttières:     'Lavage gouttières',
+  paysager:       'Entretien paysager',
+  pave_uni:       'Pavé uni',
+  tourbe:         'Pose de tourbe',
+  plates_bandes:  'Plates-bandes',
+  autre:          'Autre',
 }
 
 export default function PinPopup({ door, onClose }: { door: any; onClose: () => void }) {
-  const statusInfo = STATUS_LABELS[door.status] || { label: door.status, color: '#fff' }
+  const statusInfo = STATUS_LABELS[door.status] || { label: door.status, bg: '#F3F4F6', color: '#6B7280' }
   const date = new Date(door.created_at)
   const dateStr = date.toLocaleDateString('fr-CA') + ' à ' + date.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 9999 }}>
-      <div style={{ background: '#0F172A', width: '100%', borderRadius: '24px 24px 0 0', maxHeight: '70vh', overflowY: 'auto' }}>
+    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 9999 }}>
+      <div style={{ background: '#FFFFFF', width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '70vh', overflowY: 'auto', fontFamily: 'Inter, sans-serif' }}>
+
+        {/* Handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div style={{ width: 40, height: 4, background: '#334155', borderRadius: 2 }} />
+          <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 2 }} />
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px 12px', borderBottom: '1px solid #1E293B' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 14, height: 14, borderRadius: '50%', background: door.profiles?.color || '#3B82F6', flexShrink: 0 }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: door.profiles?.color || '#69C9CA', flexShrink: 0 }} />
             <div>
-              <p style={{ color: 'white', fontWeight: 600, fontSize: 15 }}>{door.profiles?.full_name}</p>
-              <p style={{ color: '#64748B', fontSize: 11 }}>{dateStr}</p>
+              <p style={{ color: '#111827', fontWeight: 600, fontSize: 15, margin: 0 }}>{door.profiles?.full_name}</p>
+              <p style={{ color: '#9CA3AF', fontSize: 12, margin: '2px 0 0' }}>{dateStr}</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ color: '#64748B', fontSize: 22, background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} style={{ background: '#F3F4F6', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <X size={16} color="#6B7280" />
+          </button>
         </div>
 
-        <div style={{ padding: '16px 20px 32px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ padding: '18px 20px 36px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Badge statut */}
           <div style={{
-            display: 'inline-flex', padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600,
-            background: statusInfo.color + '25', color: statusInfo.color, alignSelf: 'flex-start'
+            display: 'inline-flex', padding: '4px 12px', borderRadius: 999,
+            fontSize: 13, fontWeight: 500,
+            background: statusInfo.bg, color: statusInfo.color,
+            alignSelf: 'flex-start',
           }}>
             {statusInfo.label}
           </div>
 
           {door.client_name && <Row label="Client" value={door.client_name} />}
+
           {door.phone && (
             <Row label="Téléphone" value={
-              <a href={`tel:${door.phone}`} style={{ color: '#60A5FA' }}>{door.phone}</a>
+              <a href={`tel:${door.phone}`} style={{ color: '#69C9CA', fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Phone size={13} />
+                {door.phone}
+              </a>
             } />
           )}
+
           {door.service_type && <Row label="Service" value={SERVICE_LABELS[door.service_type] || door.service_type} />}
+
           {door.contract_value && (
             <Row label="Montant" value={
-              <span style={{ color: '#34D399', fontWeight: 700 }}>
+              <span style={{ color: '#065F46', fontWeight: 700, background: '#D1FAE5', padding: '2px 8px', borderRadius: 6, fontSize: 13 }}>
                 {Number(door.contract_value).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' })}
               </span>
             } />
           )}
+
           {door.scheduled_date && <Row label="Date prévue" value={new Date(door.scheduled_date).toLocaleDateString('fr-CA')} />}
           {door.objection && <Row label="Objection" value={door.objection.replace(/_/g, ' ')} />}
           {door.follow_up_needed && door.follow_up_date && (
             <Row label="Suivi" value={new Date(door.follow_up_date).toLocaleDateString('fr-CA')} />
           )}
+
           {door.notes && (
             <div>
-              <p style={{ color: '#64748B', fontSize: 12, marginBottom: 4 }}>Notes</p>
-              <p style={{ color: 'white', fontSize: 14, background: '#1E293B', padding: '10px 12px', borderRadius: 10 }}>{door.notes}</p>
+              <p style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Notes</p>
+              <p style={{ color: '#374151', fontSize: 14, background: '#F9FAFB', border: '1px solid #F3F4F6', padding: '10px 12px', borderRadius: 8, margin: 0 }}>{door.notes}</p>
             </div>
           )}
-          <p style={{ color: '#475569', fontSize: 11 }}>
-            GPS: {door.latitude.toFixed(5)}, {door.longitude.toFixed(5)}
+
+          <p style={{ color: '#D1D5DB', fontSize: 11, margin: '4px 0 0' }}>
+            GPS : {door.latitude.toFixed(5)}, {door.longitude.toFixed(5)}
           </p>
         </div>
       </div>
@@ -87,9 +106,9 @@ export default function PinPopup({ door, onClose }: { door: any; onClose: () => 
 
 function Row({ label, value }: { label: string; value: any }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-      <span style={{ color: '#64748B', fontSize: 13, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: 'white', fontSize: 13, textAlign: 'right' }}>{value}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+      <span style={{ color: '#9CA3AF', fontSize: 13, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: '#111827', fontSize: 13, textAlign: 'right' }}>{value}</span>
     </div>
   )
 }
