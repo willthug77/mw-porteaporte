@@ -107,6 +107,15 @@ function formatDateFr(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
 // ─── fiche modal ──────────────────────────────────────────────────────────────
 
 function FicheModal({ door, onClose, onEdit }: { door: ClientDoor; onClose: () => void; onEdit: () => void }) {
@@ -224,15 +233,6 @@ function EditClientModal({ door, onClose, onSaved }: { door: ClientDoor; onClose
     onClose()
   }
 
-  function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-      <div>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>{label}</label>
-        {children}
-      </div>
-    )
-  }
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div
@@ -342,15 +342,6 @@ function AddClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
     if (err) { setError('Erreur lors de l\'ajout.'); return }
     onSaved()
     onClose()
-  }
-
-  function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-      <div>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>{label}</label>
-        {children}
-      </div>
-    )
   }
 
   return (

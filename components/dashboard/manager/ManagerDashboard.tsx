@@ -35,7 +35,7 @@ import {
 } from '@/lib/config'
 import { supabase } from '@/lib/supabase'
 import DoorForm from '@/components/DoorForm'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 
 type Tab = 'global' | 'equipe' | 'analytiques' | 'alertes' | 'portes'
 
@@ -81,6 +81,9 @@ export default function ManagerDashboard() {
   const [doorsDateFrom, setDoorsDateFrom] = useState('')
   const [doorsDateTo, setDoorsDateTo]     = useState('')
   const [doorsPage, setDoorsPage] = useState(1)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId]           = useState<string | null>(null)
+  const [deleteToast, setDeleteToast]         = useState('')
 
   const { stats, vendeurStats, dernieresPortes, chartData, vendeurs, loading, refetch } =
     useDashboardManager()
@@ -151,6 +154,17 @@ export default function ManagerDashboard() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
+
+  const handleDeleteDoor = async (id: string) => {
+    setDeletingId(id)
+    await supabase.from('doors').delete().eq('id', id)
+    setAllDoors(prev => prev.filter(d => d.id !== id))
+    setDeletingId(null)
+    setConfirmDeleteId(null)
+    setDeleteToast('Porte supprimée')
+    setTimeout(() => setDeleteToast(''), 2000)
+    refetch()
+  }
 
   const todayDate = new Date().toLocaleDateString('fr-CA', {
     weekday: 'long',
@@ -969,11 +983,18 @@ export default function ManagerDashboard() {
                             {door.notes.length > 60 ? door.notes.slice(0, 60) + '…' : door.notes}
                           </p>
                         )}
-                        {/* Button */}
-                        <button onClick={() => setEditDoor(door)}
-                          style={{ marginTop: 10, width: '100%', background: '#69C9CA', color: '#000', border: 'none', borderRadius: 8, padding: '9px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                          Voir / Modifier
-                        </button>
+                        {/* Buttons */}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                          <button onClick={() => setEditDoor(door)}
+                            style={{ flex: 1, background: '#69C9CA', color: '#000', border: 'none', borderRadius: 8, padding: '9px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                            Voir / Modifier
+                          </button>
+                          <button onClick={() => setConfirmDeleteId(door.id)}
+                            style={{ background: 'transparent', border: '1px solid #FCA5A5', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'Inter, sans-serif', flexShrink: 0 }}>
+                            <Trash2 size={13} />
+                            Supprimer
+                          </button>
+                        </div>
                       </div>
                     )
                   })}
@@ -1009,6 +1030,45 @@ export default function ManagerDashboard() {
           mode="edit"
           initialData={editDoor}
         />
+      )}
+
+      {/* Delete Confirm Modal */}
+      {confirmDeleteId && (() => {
+        const door = allDoors.find(d => d.id === confirmDeleteId)
+        if (!door) return null
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: '#FFFFFF', borderRadius: 12, padding: 24, maxWidth: 320, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', fontFamily: 'Inter, sans-serif' }}>
+              <h3 style={{ color: '#111827', fontWeight: 700, fontSize: 16, margin: '0 0 8px' }}>Supprimer cette porte ?</h3>
+              <p style={{ color: '#6B7280', fontSize: 13, margin: '0 0 8px' }}>{door.address || door.client_name || '—'}</p>
+              {door.client_name && (
+                <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>
+                  <p style={{ color: '#92400E', fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+                    ⚠ Cette porte est liée à un client ({door.client_name}). Le client sera retiré de la Base de données.
+                  </p>
+                </div>
+              )}
+              <p style={{ color: '#9CA3AF', fontSize: 12, margin: '0 0 20px' }}>Cette action est irréversible.</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setConfirmDeleteId(null)} disabled={!!deletingId}
+                  style={{ flex: 1, background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'Inter, sans-serif', color: '#374151' }}>
+                  Annuler
+                </button>
+                <button onClick={() => handleDeleteDoor(confirmDeleteId)} disabled={!!deletingId}
+                  style={{ flex: 1, background: deletingId ? '#F87171' : '#EF4444', border: 'none', borderRadius: 8, padding: '10px', fontSize: 14, fontWeight: 600, cursor: deletingId ? 'not-allowed' : 'pointer', fontFamily: 'Inter, sans-serif', color: '#FFFFFF' }}>
+                  {deletingId ? 'Suppression...' : 'Supprimer'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Delete Toast */}
+      {deleteToast && (
+        <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#EF4444', color: '#FFFFFF', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, fontFamily: 'Inter, sans-serif', zIndex: 10001, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
+          ✓ {deleteToast}
+        </div>
       )}
 
       {/* VendeurDetail Modal */}
