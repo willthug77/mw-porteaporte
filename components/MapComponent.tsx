@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { reverseGeocode } from '@/lib/geocoding'
 
 interface Door {
   id: string
@@ -21,24 +22,8 @@ interface Props {
   onLongPress: (lat: number, lng: number, address: string) => void
   onDoorClick: (door: Door) => void
   clearTempMarkerSignal?: number
-}
-
-const getAddress = async (lat: number, lng: number): Promise<string> => {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`,
-      { headers: { 'User-Agent': 'MW-Porteaporte/1.0' } }
-    )
-    const data = await res.json()
-    if (data.address) {
-      const a = data.address
-      const num = a.house_number || ''
-      const rue = a.road || ''
-      const ville = a.city || a.town || a.village || ''
-      return `${num} ${rue}, ${ville}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')
-    }
-  } catch (e) {}
-  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+  // When set (id changes), place temp marker + recenter map — used for search-modal flow
+  externalTrigger?: { lat: number; lng: number; id: number } | null
 }
 
 const TEMP_MARKER_HTML = `
@@ -52,7 +37,7 @@ const TEMP_MARKER_HTML = `
   </div>
 `
 
-export default function MapComponent({ doors, onLongPress, onDoorClick, clearTempMarkerSignal }: Props) {
+export default function MapComponent({ doors, onLongPress, onDoorClick, clearTempMarkerSignal, externalTrigger }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const leafletRef = useRef<any>(null)
@@ -71,7 +56,7 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
   const movedRef = useRef(false)
   const watchIdRef = useRef<number | null>(null)
 
-  // Clear temp marker whenever the signal increments (form closed / saved)
+  // Clear temp marker when signal increments (form closed / saved)
   useEffect(() => {
     if (clearTempMarkerSignal === undefined) return
     if (temporaryMarkerRef.current) {
@@ -79,6 +64,14 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
       temporaryMarkerRef.current = null
     }
   }, [clearTempMarkerSignal])
+
+  // External trigger from search modal: place temp marker + recenter
+  useEffect(() => {
+    if (!externalTrigger) return
+    if (!mapInstanceRef.current || !leafletRef.current) return
+    placeTempMarker(externalTrigger.lat, externalTrigger.lng)
+    mapInstanceRef.current.setView([externalTrigger.lat, externalTrigger.lng], 18)
+  }, [externalTrigger])
 
   const placeTempMarker = (lat: number, lng: number) => {
     if (!mapInstanceRef.current || !leafletRef.current) return
@@ -149,7 +142,7 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
         )
       }
 
-      // Desktop long press — mousedown/mousemove/mouseup
+      // Desktop long press — 700 ms
       map.on('mousedown', (e: any) => {
         pressStartRef.current = { x: e.containerPoint.x, y: e.containerPoint.y }
         movedRef.current = false
@@ -158,10 +151,11 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
         pressTimerRef.current = setTimeout(async () => {
           if (!movedRef.current) {
             placeTempMarker(lat, lng)
-            const address = await getAddress(lat, lng)
+            const result = await reverseGeocode(lat, lng)
+            const address = result?.formatted || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
             onLongPress(lat, lng, address)
           }
-        }, 500)
+        }, 700)
       })
       map.on('mousemove', (e: any) => {
         if (pressStartRef.current) {
@@ -178,16 +172,21 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
         pressStartRef.current = null
       })
 
-      // Mobile long press — touchstart/touchmove/touchend
+      // Mobile long press — 700 ms
       const container = map.getContainer()
 
-      // Block browser default selection / callout behaviors
       container.style.userSelect = 'none'
       ;(container.style as any).webkitUserSelect = 'none'
       ;(container.style as any).webkitTouchCallout = 'none'
 
       const onTouchStart = (e: TouchEvent) => {
-        e.preventDefault() // blocks context menu and iOS callout
+        // Let taps on markers pass through unmodified — they fire their own click events
+        const target = e.target as HTMLElement
+        if (target.closest('.leaflet-marker-icon') || target.closest('.leaflet-marker-pane')) {
+          return
+        }
+
+        e.preventDefault() // blocks context menu + iOS callout on map background
         const touch = e.touches[0]
         pressStartRef.current = { x: touch.clientX, y: touch.clientY }
         movedRef.current = false
@@ -199,10 +198,11 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
             const point = map.containerPointToLatLng(L.point(cx - rect.left, cy - rect.top))
             if (navigator.vibrate) navigator.vibrate(50)
             placeTempMarker(point.lat, point.lng)
-            const address = await getAddress(point.lat, point.lng)
+            const result = await reverseGeocode(point.lat, point.lng)
+            const address = result?.formatted || `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`
             onLongPress(point.lat, point.lng, address)
           }
-        }, 500)
+        }, 700)
       }
       const onTouchMove = (e: TouchEvent) => {
         if (pressStartRef.current) {
@@ -268,7 +268,11 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
       </svg>`
       const icon = L.divIcon({ html: svg, className: '', iconSize: [32, 40], iconAnchor: [16, 40] })
       const marker = L.marker([door.latitude, door.longitude], { icon }).addTo(map)
-      marker.on('click', () => onDoorClick(door))
+      // stopPropagation prevents the map's mousedown from competing with the marker click
+      marker.on('click', (e: any) => {
+        L.DomEvent.stopPropagation(e)
+        onDoorClick(door)
+      })
       markersRef.current.push(marker)
     })
   }, [doors, onDoorClick])

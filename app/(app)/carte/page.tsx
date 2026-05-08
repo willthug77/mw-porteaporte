@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import DoorForm, { Door } from '@/components/DoorForm'
 import DoorDetailSheet, { DoorDetail } from '@/components/DoorDetailSheet'
+import AddressSearchModal from '@/components/AddressSearchModal'
 import { Plus } from 'lucide-react'
 
 const MapComponent = dynamic(
@@ -22,11 +23,14 @@ export default function CartePage() {
   const [profile, setProfile] = useState<any>(null)
   const [doors, setDoors] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [formCoords, setFormCoords] = useState<{ lat: number; lng: number; address: string } | null>(null)
+  const [formCoords, setFormCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null)
   const [editDoor, setEditDoor] = useState<Door | null>(null)
   const [detailDoor, setDetailDoor] = useState<DoorDetail | null>(null)
-  // Incrementing this signal tells MapComponent to remove the temporary marker
+  const [showSearchModal, setShowSearchModal] = useState(false)
+  // Incrementing clearTempSignal tells MapComponent to remove the temporary marker
   const [clearTempSignal, setClearTempSignal] = useState(0)
+  // externalTrigger tells MapComponent to place a temp marker + recenter (used for search-modal flow)
+  const [externalTrigger, setExternalTrigger] = useState<{ lat: number; lng: number; id: number } | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -53,10 +57,21 @@ export default function CartePage() {
     return () => { supabase.removeChannel(channel) }
   }, [loadDoors])
 
-  const handleLongPress = useCallback((lat: number, lng: number, address: string) => {
+  // Shared flow for opening "Nouvelle porte" — called by both long press and search modal
+  const openNewDoorFlow = useCallback((lat: number, lng: number, address: string, triggerMap = false) => {
     setFormCoords({ lat, lng, address })
     setShowForm(true)
+    if (triggerMap) {
+      // Tell MapComponent to place temp marker + recenter (search flow only)
+      setExternalTrigger({ lat, lng, id: Date.now() })
+    }
   }, [])
+
+  // MapComponent long press callback
+  const handleLongPress = useCallback((lat: number, lng: number, address: string) => {
+    // MapComponent already placed the temp marker; just open the form
+    openNewDoorFlow(lat, lng, address, false)
+  }, [openNewDoorFlow])
 
   // Clic sur un pin → DoorDetailSheet (lecture seule)
   const handleDoorClick = useCallback((door: any) => {
@@ -70,24 +85,6 @@ export default function CartePage() {
     setDetailDoor(null)
   }, [detailDoor])
 
-  const getAddress = async (lat: number, lng: number): Promise<string> => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`,
-        { headers: { 'User-Agent': 'MW-Porteaporte/1.0' } }
-      )
-      const data = await res.json()
-      if (data.address) {
-        const a = data.address
-        const num = a.house_number || ''
-        const rue = a.road || ''
-        const ville = a.city || a.town || a.village || ''
-        return `${num} ${rue}, ${ville}`.trim().replace(/^,\s*/, '').replace(/,\s*$/, '')
-      }
-    } catch (e) {}
-    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-  }
-
   // Mode création — insert géré par le parent
   const handleFormSave = async (formData: any) => {
     if (!profile || !formCoords) return
@@ -95,7 +92,7 @@ export default function CartePage() {
       user_id: profile.id,
       latitude: formCoords.lat,
       longitude: formCoords.lng,
-      address: formCoords.address,
+      address: formCoords.address || null, // fallback; DoorForm's payload may override via formData.address
       ...formData,
     })
     setShowForm(false)
@@ -123,6 +120,7 @@ export default function CartePage() {
         onLongPress={handleLongPress}
         onDoorClick={handleDoorClick}
         clearTempMarkerSignal={clearTempSignal}
+        externalTrigger={externalTrigger}
       />
 
       {/* Header flottant */}
@@ -155,22 +153,10 @@ export default function CartePage() {
         </div>
       </div>
 
-      {/* Bouton Nouvelle porte */}
+      {/* Bouton Nouvelle porte → ouvre le modal de recherche d'adresse */}
       <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
         <button
-          onClick={async () => {
-            navigator.geolocation.getCurrentPosition(
-              async pos => {
-                const address = await getAddress(pos.coords.latitude, pos.coords.longitude)
-                setFormCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude, address })
-                setShowForm(true)
-              },
-              () => {
-                setFormCoords({ lat: 45.45, lng: -73.45, address: '' })
-                setShowForm(true)
-              }
-            )
-          }}
+          onClick={() => setShowSearchModal(true)}
           style={{
             background: '#69C9CA', color: '#000000', fontWeight: 600,
             padding: '13px 28px', borderRadius: 12, fontSize: 15, border: 'none',
@@ -185,6 +171,17 @@ export default function CartePage() {
           Nouvelle porte
         </button>
       </div>
+
+      {/* Modal de recherche d'adresse */}
+      {showSearchModal && (
+        <AddressSearchModal
+          onSelect={(lat, lng, address) => {
+            setShowSearchModal(false)
+            openNewDoorFlow(lat, lng, address, true) // triggerMap=true → recenter + temp marker
+          }}
+          onClose={() => setShowSearchModal(false)}
+        />
+      )}
 
       {/* Formulaire création */}
       {showForm && formCoords && profile && (

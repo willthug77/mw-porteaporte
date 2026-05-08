@@ -1,5 +1,5 @@
 'use client'
-import { MapPin } from 'lucide-react'
+import { MapPin, AlertTriangle } from 'lucide-react'
 import { useAddress } from '@/lib/hooks/useAddress'
 
 interface Props {
@@ -46,6 +46,16 @@ export default function AddressDisplay({ lat, lng }: Props) {
         {!address.street && !address.city && (
           <span style={{ fontSize: 12, color: '#374151' }}>
             {lat.toFixed(5)}, {lng.toFixed(5)}
+          </span>
+        )}
+        {address.approximate && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize: 11, color: '#92400E', background: '#FEF3C7',
+            borderRadius: 4, padding: '1px 6px', marginTop: 2,
+          }}>
+            <AlertTriangle size={10} />
+            Adresse approximative — veuillez vérifier
           </span>
         )}
       </span>

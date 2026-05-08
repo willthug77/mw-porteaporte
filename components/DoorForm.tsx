@@ -59,7 +59,7 @@ export interface Door {
 type Step = 'repondu' | 'close' | 'vente' | 'objection'
 
 interface Props {
-  coords: { lat: number; lng: number }
+  coords: { lat: number; lng: number; address?: string }
   profile: any
   onSave: (data: any) => void
   onClose: () => void
@@ -90,13 +90,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function FocusInput({ type = 'text', placeholder, value, onChange }: {
-  type?: string; placeholder?: string; value: string
+function FocusInput({ type = 'text', placeholder, value, onChange, autoFocus }: {
+  type?: string; placeholder?: string; value: string; autoFocus?: boolean
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }) {
   return (
     <input
       type={type} placeholder={placeholder} value={value} onChange={onChange}
+      autoFocus={autoFocus}
       style={fieldInput}
       onFocus={e => { e.target.style.borderColor = '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
       onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
@@ -147,24 +148,39 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
   const [error, setError] = useState('')
   const [venteSubmitAttempted, setVenteSubmitAttempted] = useState(false)
 
+  // Editable address — only shown (and required) in create mode
+  const [address, setAddress] = useState(coords.address || '')
+  const [addressError, setAddressError] = useState('')
+
   const isEditVendu = isEdit && editStatus === 'vendu'
   const isEditClientValid = !isEditVendu || (clientName.trim().length > 0 && isPhoneValid(phone))
 
-  const buildPayload = (overrideData?: any) => ({
-    service_type: service || null,
-    contract_value: amount ? parseFloat(amount) : null,
-    scheduled_date: scheduledDate || null,
-    objection: objection || null,
-    notes: notes || null,
-    follow_up_needed: followUp,
-    follow_up_date: followUpDate || null,
-    client_name: clientName || null,
-    phone: phone || null,
-    ...overrideData,
-  })
+  const buildPayload = (overrideData?: any) => {
+    const base: Record<string, any> = {
+      service_type: service || null,
+      contract_value: amount ? parseFloat(amount) : null,
+      scheduled_date: scheduledDate || null,
+      objection: objection || null,
+      notes: notes || null,
+      follow_up_needed: followUp,
+      follow_up_date: followUpDate || null,
+      client_name: clientName || null,
+      phone: phone || null,
+    }
+    // Only include address in the create payload (edit keeps the address from DB unless explicitly changed)
+    if (!isEdit) {
+      base.address = address.trim() || null
+    }
+    return { ...base, ...overrideData }
+  }
 
-  // Create mode: delegate to parent
+  // Create mode: validate address then delegate to parent
   const save = async (overrideData?: any) => {
+    if (!address.trim()) {
+      setAddressError("L'adresse est obligatoire.")
+      return
+    }
+    setAddressError('')
     setSaving(true)
     await onSave(buildPayload(overrideData))
     setSaving(false)
@@ -208,14 +224,44 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
         </div>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
-          <div>
-            <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: 0 }}>{title}</p>
-            <div style={{ marginTop: 2 }}>
-              <AddressDisplay lat={coords.lat} lng={coords.lng} />
-            </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 20px 14px', borderBottom: '1px solid #F3F4F6', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>{title}</p>
+
+            {/* Create mode: editable address field */}
+            {!isEdit && (
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 4 }}>
+                  Adresse *
+                </label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={e => { setAddress(e.target.value); setAddressError('') }}
+                  placeholder={coords.address ? '' : 'Récupération de l\'adresse...'}
+                  style={{
+                    ...fieldInput,
+                    fontSize: 13,
+                    padding: '8px 12px',
+                    borderColor: addressError ? '#EF4444' : '#E5E7EB',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = addressError ? '#EF4444' : '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
+                  onBlur={e => { e.target.style.borderColor = addressError ? '#EF4444' : '#E5E7EB'; e.target.style.boxShadow = 'none' }}
+                />
+                {addressError && (
+                  <p style={{ color: '#EF4444', fontSize: 12, margin: '4px 0 0' }}>{addressError}</p>
+                )}
+              </div>
+            )}
+
+            {/* Edit mode: read-only address display */}
+            {isEdit && (
+              <div style={{ marginTop: 2 }}>
+                <AddressDisplay lat={coords.lat} lng={coords.lng} />
+              </div>
+            )}
           </div>
-          <button onClick={onClose} style={{ background: '#F3F4F6', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ background: '#F3F4F6', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <X size={16} color="#6B7280" />
           </button>
         </div>
@@ -391,7 +437,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                     <span>Non — Personne</span>
                     <span style={{ color: '#374151', fontSize: 13 }}>Enregistrer →</span>
                   </button>
-                  <button onClick={() => setStep('close')}
+                  <button onClick={() => { if (!address.trim()) { setAddressError("L'adresse est obligatoire."); return } setStep('close') }}
                     style={{ width: '100%', background: '#69C9CA', color: '#000000', fontWeight: 600, padding: '16px 20px', borderRadius: 12, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 56, fontFamily: 'Inter, sans-serif' }}>
                     <span>Oui — Quelqu'un a répondu</span>
                     <span>›</span>
@@ -423,12 +469,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                     </div>
 
                     {/* Section client requise */}
-                    <div style={{
-                      borderLeft: '3px solid #69C9CA',
-                      background: '#E8F8F8',
-                      padding: 16,
-                      borderRadius: 8,
-                    }}>
+                    <div style={{ borderLeft: '3px solid #69C9CA', background: '#E8F8F8', padding: 16, borderRadius: 8 }}>
                       <p style={{ color: '#0D6E6F', fontWeight: 700, fontSize: 14, margin: '0 0 12px' }}>
                         Informations client requises
                       </p>
