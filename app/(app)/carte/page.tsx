@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import DoorForm, { Door } from '@/components/DoorForm'
+import DoorDetailSheet, { DoorDetail } from '@/components/DoorDetailSheet'
 import { Plus } from 'lucide-react'
 
 const MapComponent = dynamic(
@@ -23,6 +24,9 @@ export default function CartePage() {
   const [showForm, setShowForm] = useState(false)
   const [formCoords, setFormCoords] = useState<{ lat: number; lng: number; address: string } | null>(null)
   const [editDoor, setEditDoor] = useState<Door | null>(null)
+  const [detailDoor, setDetailDoor] = useState<DoorDetail | null>(null)
+  // Incrementing this signal tells MapComponent to remove the temporary marker
+  const [clearTempSignal, setClearTempSignal] = useState(0)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -54,10 +58,17 @@ export default function CartePage() {
     setShowForm(true)
   }, [])
 
-  // Clic sur un pin → DoorForm en mode édition
+  // Clic sur un pin → DoorDetailSheet (lecture seule)
   const handleDoorClick = useCallback((door: any) => {
-    setEditDoor(door as Door)
+    setDetailDoor(door as DoorDetail)
   }, [])
+
+  // Depuis DoorDetailSheet → ouvrir DoorForm en mode édition
+  const handleEditFromDetail = useCallback(() => {
+    if (!detailDoor) return
+    setEditDoor(detailDoor as unknown as Door)
+    setDetailDoor(null)
+  }, [detailDoor])
 
   const getAddress = async (lat: number, lng: number): Promise<string> => {
     try {
@@ -89,8 +100,15 @@ export default function CartePage() {
     })
     setShowForm(false)
     setFormCoords(null)
+    setClearTempSignal(s => s + 1) // retire le marker temporaire
     loadDoors()
   }
+
+  const handleFormClose = useCallback(() => {
+    setShowForm(false)
+    setFormCoords(null)
+    setClearTempSignal(s => s + 1) // annulation → retire le marker temporaire
+  }, [])
 
   // Mode édition — update géré par DoorForm, on refetch seulement
   const handleEditSave = useCallback(() => {
@@ -100,7 +118,12 @@ export default function CartePage() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', fontFamily: 'Inter, sans-serif' }}>
-      <MapComponent doors={doors} onLongPress={handleLongPress} onDoorClick={handleDoorClick} />
+      <MapComponent
+        doors={doors}
+        onLongPress={handleLongPress}
+        onDoorClick={handleDoorClick}
+        clearTempMarkerSignal={clearTempSignal}
+      />
 
       {/* Header flottant */}
       <div style={{ position: 'absolute', top: 12, left: 12, right: 12, pointerEvents: 'none', zIndex: 1000 }}>
@@ -170,11 +193,20 @@ export default function CartePage() {
           profile={profile}
           mode="create"
           onSave={handleFormSave}
-          onClose={() => { setShowForm(false); setFormCoords(null) }}
+          onClose={handleFormClose}
         />
       )}
 
-      {/* Formulaire édition — clic sur pin */}
+      {/* Fiche de consultation — clic sur un pin */}
+      {detailDoor && (
+        <DoorDetailSheet
+          door={detailDoor}
+          onClose={() => setDetailDoor(null)}
+          onEdit={handleEditFromDetail}
+        />
+      )}
+
+      {/* Formulaire édition — via bouton "Modifier" dans la fiche */}
       {editDoor && profile && (
         <DoorForm
           coords={{ lat: editDoor.latitude, lng: editDoor.longitude }}
