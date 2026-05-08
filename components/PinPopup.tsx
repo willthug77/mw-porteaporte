@@ -1,5 +1,6 @@
 'use client'
 import { X, Phone } from 'lucide-react'
+import AddressDisplay from '@/components/AddressDisplay'
 
 const STATUS_LABELS: Record<string, { label: string; bg: string; color: string }> = {
   pas_repondu:   { label: 'Sans réponse',   bg: '#F3F4F6', color: '#6B7280' },
@@ -95,9 +96,9 @@ export default function PinPopup({ door, onClose }: { door: any; onClose: () => 
             </div>
           )}
 
-          <p style={{ color: '#6B7280', fontSize: 11, margin: '4px 0 0' }}>
-            GPS : {door.latitude.toFixed(5)}, {door.longitude.toFixed(5)}
-          </p>
+          <div style={{ marginTop: 4 }}>
+            <AddressDisplay lat={door.latitude} lng={door.longitude} />
+          </div>
         </div>
       </div>
     </div>

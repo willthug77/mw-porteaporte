@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import AddressDisplay from '@/components/AddressDisplay'
 
 const SERVICES = [
   { value: 'vitres_ext', label: 'Lavage vitres ext.' },
@@ -113,9 +114,9 @@ export default function DoorForm({ coords, onSave, onClose }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
           <div>
             <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: 0 }}>Nouvelle porte</p>
-            <p style={{ color: '#374151', fontSize: 12, margin: '2px 0 0' }}>
-              {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
-            </p>
+            <div style={{ marginTop: 2 }}>
+              <AddressDisplay lat={coords.lat} lng={coords.lng} />
+            </div>
           </div>
           <button onClick={onClose} style={{ background: '#F3F4F6', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={16} color="#6B7280" />
