@@ -42,7 +42,12 @@ const getAddress = async (lat: number, lng: number): Promise<string> => {
 
 export default function MapComponent({ doors, onLongPress, onDoorClick }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
+  // stores the L.Map instance directly (not a wrapper object)
   const mapInstanceRef = useRef<any>(null)
+  // stores L (Leaflet library) separately so markers effect can access it
+  const leafletRef = useRef<any>(null)
+  // stores touch handler refs for cleanup
+  const cleanupRef = useRef<{ container: HTMLElement; onTouchStart: any; onTouchMove: any; onTouchEnd: any } | null>(null)
   const markersRef = useRef<any[]>([])
   const userMarkerRef = useRef<any>(null)
   const pressTimerRef = useRef<any>(null)
@@ -51,16 +56,27 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
   const watchIdRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return
+    if (!mapRef.current) return
 
     const initMap = async () => {
       const L = (await import('leaflet')).default
+
+      // Fix #1: destroy any pre-existing Leaflet instance on this container
+      // (guards against React StrictMode double-invocation)
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
+        mapInstanceRef.current = null
+      }
 
       const map = L.map(mapRef.current!, {
         center: [45.45, -73.45],
         zoom: 15,
         zoomControl: false,
       })
+
+      // Store immediately so updateUserPos can use it before initMap completes
+      mapInstanceRef.current = map
+      leafletRef.current = L
 
       L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
         maxZoom: 20,
@@ -69,8 +85,9 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
 
       L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-      // Géolocalisation temps réel — marqueur teal MW
+      // Fix #2: updateUserPos uses mapInstanceRef.current instead of closure `map`
       const updateUserPos = (pos: GeolocationPosition) => {
+        if (!mapInstanceRef.current) return
         const { latitude, longitude } = pos.coords
         if (userMarkerRef.current) {
           userMarkerRef.current.setLatLng([latitude, longitude])
@@ -81,8 +98,8 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
             iconSize: [20, 20],
             iconAnchor: [10, 10],
           })
-          userMarkerRef.current = L.marker([latitude, longitude], { icon, zIndexOffset: 1000 }).addTo(map)
-          map.setView([latitude, longitude], 17)
+          userMarkerRef.current = L.marker([latitude, longitude], { icon, zIndexOffset: 1000 }).addTo(mapInstanceRef.current)
+          mapInstanceRef.current.setView([latitude, longitude], 17)
         }
       }
 
@@ -152,27 +169,31 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
       container.addEventListener('touchmove', onTouchMove, { passive: true })
       container.addEventListener('touchend', onTouchEnd)
 
-      mapInstanceRef.current = { map, L, container, onTouchStart, onTouchMove, onTouchEnd }
+      cleanupRef.current = { container, onTouchStart, onTouchMove, onTouchEnd }
     }
 
     initMap()
 
     return () => {
       if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current)
-      if (mapInstanceRef.current) {
-        const { map, container, onTouchStart, onTouchMove, onTouchEnd } = mapInstanceRef.current
+      if (cleanupRef.current) {
+        const { container, onTouchStart, onTouchMove, onTouchEnd } = cleanupRef.current
         container.removeEventListener('touchstart', onTouchStart)
         container.removeEventListener('touchmove', onTouchMove)
         container.removeEventListener('touchend', onTouchEnd)
-        map.remove()
+        cleanupRef.current = null
+      }
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
         mapInstanceRef.current = null
       }
     }
   }, [])
 
   useEffect(() => {
-    if (!mapInstanceRef.current) return
-    const { map, L } = mapInstanceRef.current
+    if (!mapInstanceRef.current || !leafletRef.current) return
+    const map = mapInstanceRef.current
+    const L = leafletRef.current
     markersRef.current.forEach(m => m.remove())
     markersRef.current = []
     doors.forEach(door => {
@@ -193,7 +214,7 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
 
   const recenter = () => {
     if (!mapInstanceRef.current) return
-    const { map } = mapInstanceRef.current
+    const map = mapInstanceRef.current
     if (userMarkerRef.current) {
       map.setView(userMarkerRef.current.getLatLng(), 17)
     } else {
