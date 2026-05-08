@@ -206,10 +206,11 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      {/* Bouton localisation — bas gauche pour éviter le chevauchement avec zoom (bas droit) */}
       <button
         onClick={recenter}
         style={{
-          position: 'absolute', bottom: 80, right: 12, zIndex: 1000,
+          position: 'absolute', bottom: 16, left: 12, zIndex: 1000,
           background: 'white',
           border: '1px solid #E5E7EB',
           borderRadius: '50%',

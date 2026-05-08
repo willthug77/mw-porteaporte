@@ -2,8 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
-import DoorForm from '@/components/DoorForm'
-import PinPopup from '@/components/PinPopup'
+import DoorForm, { Door } from '@/components/DoorForm'
 import { Plus } from 'lucide-react'
 
 const MapComponent = dynamic(
@@ -23,7 +22,7 @@ export default function CartePage() {
   const [doors, setDoors] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [formCoords, setFormCoords] = useState<{ lat: number; lng: number; address: string } | null>(null)
-  const [selectedDoor, setSelectedDoor] = useState<any>(null)
+  const [editDoor, setEditDoor] = useState<Door | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -36,7 +35,7 @@ export default function CartePage() {
   const loadDoors = useCallback(async () => {
     const { data } = await supabase
       .from('doors')
-      .select('*, profiles(full_name, color)')
+      .select('id, user_id, latitude, longitude, address, status, service_type, contract_value, scheduled_date, objection, notes, follow_up_needed, follow_up_date, client_name, phone, created_at, profiles(full_name, color)')
       .order('created_at', { ascending: false })
     setDoors(data || [])
   }, [])
@@ -55,8 +54,9 @@ export default function CartePage() {
     setShowForm(true)
   }, [])
 
+  // Clic sur un pin → DoorForm en mode édition
   const handleDoorClick = useCallback((door: any) => {
-    setSelectedDoor(door)
+    setEditDoor(door as Door)
   }, [])
 
   const getAddress = async (lat: number, lng: number): Promise<string> => {
@@ -77,6 +77,7 @@ export default function CartePage() {
     return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
   }
 
+  // Mode création — insert géré par le parent
   const handleFormSave = async (formData: any) => {
     if (!profile || !formCoords) return
     await supabase.from('doors').insert({
@@ -90,6 +91,12 @@ export default function CartePage() {
     setFormCoords(null)
     loadDoors()
   }
+
+  // Mode édition — update géré par DoorForm, on refetch seulement
+  const handleEditSave = useCallback(() => {
+    setEditDoor(null)
+    loadDoors()
+  }, [loadDoors])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', fontFamily: 'Inter, sans-serif' }}>
@@ -142,41 +149,41 @@ export default function CartePage() {
             )
           }}
           style={{
-            background: '#69C9CA',
-            color: '#000000',
-            fontWeight: 600,
-            padding: '13px 28px',
-            borderRadius: 12,
-            fontSize: 15,
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(105,201,202,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontFamily: 'Inter, sans-serif',
-            transition: 'background 150ms ease, box-shadow 150ms ease',
+            background: '#69C9CA', color: '#000000', fontWeight: 600,
+            padding: '13px 28px', borderRadius: 12, fontSize: 15, border: 'none',
+            cursor: 'pointer', boxShadow: '0 4px 20px rgba(105,201,202,0.45)',
+            display: 'flex', alignItems: 'center', gap: 8,
+            fontFamily: 'Inter, sans-serif', transition: 'background 150ms ease, box-shadow 150ms ease',
           }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = '#4AADAE'
-            e.currentTarget.style.boxShadow = '0 4px 24px rgba(74,173,174,0.5)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = '#69C9CA'
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(105,201,202,0.45)'
-          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#4AADAE'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(74,173,174,0.5)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#69C9CA'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(105,201,202,0.45)' }}
         >
           <Plus size={18} strokeWidth={2.5} />
           Nouvelle porte
         </button>
       </div>
 
+      {/* Formulaire création */}
       {showForm && formCoords && profile && (
-        <DoorForm coords={formCoords} profile={profile} onSave={handleFormSave} onClose={() => { setShowForm(false); setFormCoords(null) }} />
+        <DoorForm
+          coords={formCoords}
+          profile={profile}
+          mode="create"
+          onSave={handleFormSave}
+          onClose={() => { setShowForm(false); setFormCoords(null) }}
+        />
       )}
 
-      {selectedDoor && (
-        <PinPopup door={selectedDoor} onClose={() => setSelectedDoor(null)} />
+      {/* Formulaire édition — clic sur pin */}
+      {editDoor && profile && (
+        <DoorForm
+          coords={{ lat: editDoor.latitude, lng: editDoor.longitude }}
+          profile={profile}
+          mode="edit"
+          initialData={editDoor}
+          onSave={handleEditSave}
+          onClose={() => setEditDoor(null)}
+        />
       )}
     </div>
   )

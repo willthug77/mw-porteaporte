@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Map, BarChart2, User } from 'lucide-react'
+import AppHeader from '@/components/AppHeader'
 
 const NAV = [
   { href: '/carte', label: 'Carte', Icon: Map },
@@ -66,6 +67,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       background: '#F1F2F2',
       fontFamily: 'Inter, sans-serif',
     }}>
+      <AppHeader />
       <main style={{ flex: 1, overflow: 'hidden' }}>
         {children}
       </main>
