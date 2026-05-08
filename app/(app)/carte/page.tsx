@@ -12,7 +12,7 @@ const MapComponent = dynamic(
     ssr: false,
     loading: () => (
       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F1F2F2' }}>
-        <p style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter, sans-serif' }}>Chargement de la carte...</p>
+        <p style={{ color: '#374151', fontSize: 14, fontFamily: 'Inter, sans-serif' }}>Chargement de la carte...</p>
       </div>
     ),
   }
@@ -118,7 +118,7 @@ export default function CartePage() {
             border: '1px solid rgba(229,231,235,0.8)',
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           }}>
-            <span style={{ color: '#6B7280', fontSize: 13, fontWeight: 500 }}>
+            <span style={{ color: '#374151', fontSize: 13, fontWeight: 500 }}>
               {doors.length} portes
             </span>
           </div>

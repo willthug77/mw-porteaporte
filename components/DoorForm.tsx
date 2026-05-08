@@ -113,7 +113,7 @@ export default function DoorForm({ coords, onSave, onClose }: Props) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px 14px', borderBottom: '1px solid #F3F4F6' }}>
           <div>
             <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: 0 }}>Nouvelle porte</p>
-            <p style={{ color: '#9CA3AF', fontSize: 12, margin: '2px 0 0' }}>
+            <p style={{ color: '#374151', fontSize: 12, margin: '2px 0 0' }}>
               {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
             </p>
           </div>
@@ -135,7 +135,7 @@ export default function DoorForm({ coords, onSave, onClose }: Props) {
                 disabled={saving}
                 style={{ width: '100%', background: '#F1F2F2', color: '#1F2937', fontWeight: 500, padding: '16px 20px', borderRadius: 12, fontSize: 15, border: '1.5px solid #E5E7EB', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 56, fontFamily: 'Inter, sans-serif' }}>
                 <span>Non — Personne</span>
-                <span style={{ color: '#9CA3AF', fontSize: 13 }}>Enregistrer →</span>
+                <span style={{ color: '#374151', fontSize: 13 }}>Enregistrer →</span>
               </button>
               <button
                 onClick={() => setStep('close')}

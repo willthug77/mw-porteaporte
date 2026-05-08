@@ -72,7 +72,7 @@ export default function ProfilPage() {
             <p style={{ color: '#111827', fontWeight: 700, fontSize: 18, margin: 0, letterSpacing: '-0.01em' }}>
               {profile.full_name}
             </p>
-            <p style={{ color: '#9CA3AF', fontSize: 13, margin: '3px 0 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <p style={{ color: '#374151', fontSize: 13, margin: '3px 0 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {profile.email}
             </p>
             <span style={{
@@ -92,7 +92,7 @@ export default function ProfilPage() {
 
         {/* Stats */}
         <div>
-          <p style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px 2px' }}>
+          <p style={{ color: '#374151', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 10px 2px' }}>
             Mes statistiques
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -109,7 +109,7 @@ export default function ProfilPage() {
                 padding: '16px',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
               }}>
-                <p style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 500, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</p>
+                <p style={{ color: '#374151', fontSize: 12, fontWeight: 500, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</p>
                 <p style={{ color: s.color, fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{s.value}</p>
               </div>
             ))}
@@ -146,11 +146,11 @@ export default function ProfilPage() {
           overflow: 'hidden',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid #F3F4F6' }}>
-            <span style={{ color: '#6B7280', fontSize: 14 }}>Couleur terrain</span>
+            <span style={{ color: '#374151', fontSize: 14 }}>Couleur terrain</span>
             <div style={{ width: 24, height: 24, borderRadius: '50%', background: profile.color, border: '2px solid #E5E7EB' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px' }}>
-            <span style={{ color: '#6B7280', fontSize: 14 }}>Équipe</span>
+            <span style={{ color: '#374151', fontSize: 14 }}>Équipe</span>
             <span style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>MW Multiservices</span>
           </div>
         </div>

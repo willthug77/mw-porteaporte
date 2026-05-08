@@ -41,7 +41,7 @@ export default function PinPopup({ door, onClose }: { door: any; onClose: () => 
             <div style={{ width: 12, height: 12, borderRadius: '50%', background: door.profiles?.color || '#69C9CA', flexShrink: 0 }} />
             <div>
               <p style={{ color: '#111827', fontWeight: 600, fontSize: 15, margin: 0 }}>{door.profiles?.full_name}</p>
-              <p style={{ color: '#9CA3AF', fontSize: 12, margin: '2px 0 0' }}>{dateStr}</p>
+              <p style={{ color: '#374151', fontSize: 12, margin: '2px 0 0' }}>{dateStr}</p>
             </div>
           </div>
           <button onClick={onClose} style={{ background: '#F3F4F6', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -90,12 +90,12 @@ export default function PinPopup({ door, onClose }: { door: any; onClose: () => 
 
           {door.notes && (
             <div>
-              <p style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Notes</p>
+              <p style={{ color: '#374151', fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Notes</p>
               <p style={{ color: '#374151', fontSize: 14, background: '#F9FAFB', border: '1px solid #F3F4F6', padding: '10px 12px', borderRadius: 8, margin: 0 }}>{door.notes}</p>
             </div>
           )}
 
-          <p style={{ color: '#D1D5DB', fontSize: 11, margin: '4px 0 0' }}>
+          <p style={{ color: '#6B7280', fontSize: 11, margin: '4px 0 0' }}>
             GPS : {door.latitude.toFixed(5)}, {door.longitude.toFixed(5)}
           </p>
         </div>
@@ -107,7 +107,7 @@ export default function PinPopup({ door, onClose }: { door: any; onClose: () => 
 function Row({ label, value }: { label: string; value: any }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-      <span style={{ color: '#9CA3AF', fontSize: 13, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: '#374151', fontSize: 13, flexShrink: 0 }}>{label}</span>
       <span style={{ color: '#111827', fontSize: 13, textAlign: 'right' }}>{value}</span>
     </div>
   )

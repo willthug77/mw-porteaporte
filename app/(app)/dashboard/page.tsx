@@ -78,7 +78,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div style={{ background: '#FFFFFF', borderBottom: '1px solid #E5E7EB', padding: '20px 20px 16px' }}>
         <h1 style={{ color: '#111827', fontWeight: 700, fontSize: 24, margin: 0, letterSpacing: '-0.02em' }}>Dashboard</h1>
-        <p style={{ color: '#9CA3AF', fontSize: 13, margin: '4px 0 0' }}>
+        <p style={{ color: '#374151', fontSize: 13, margin: '4px 0 0' }}>
           {new Date().toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' })}
           {profile?.role === 'manager' && (
             <span style={{ color: '#69C9CA', fontWeight: 500 }}> · Vue Manager</span>
@@ -150,7 +150,7 @@ export default function DashboardPage() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <p style={{ color: '#111827', fontWeight: 600, fontSize: 14, margin: 0 }}>{v.full_name}</p>
-                    <p style={{ color: '#9CA3AF', fontSize: 12, margin: '2px 0 0' }}>
+                    <p style={{ color: '#374151', fontSize: 12, margin: '2px 0 0' }}>
                       {v.portes_aujourd_hui} portes · {v.ventes_aujourd_hui} ventes
                     </p>
                   </div>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
                     <p style={{ color: '#065F46', fontWeight: 700, fontSize: 14, margin: 0 }}>
                       {Number(v.montant_aujourd_hui) > 0 ? `${Number(v.montant_aujourd_hui).toLocaleString('fr-CA')} $` : '—'}
                     </p>
-                    <p style={{ color: '#9CA3AF', fontSize: 11, margin: '2px 0 0' }}>
+                    <p style={{ color: '#374151', fontSize: 11, margin: '2px 0 0' }}>
                       {v.total_portes > 0 ? `${Math.round((v.total_ventes / v.total_portes) * 100)}% closing` : '0%'}
                     </p>
                   </div>
@@ -195,9 +195,9 @@ export default function DashboardPage() {
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {profile?.role === 'manager' && (
-                      <p style={{ color: '#9CA3AF', fontSize: 11, margin: '0 0 1px' }}>{door.profiles?.full_name}</p>
+                      <p style={{ color: '#374151', fontSize: 11, margin: '0 0 1px' }}>{door.profiles?.full_name}</p>
                     )}
-                    <p style={{ color: '#6B7280', fontSize: 12, margin: 0 }}>
+                    <p style={{ color: '#374151', fontSize: 12, margin: 0 }}>
                       {new Date(door.created_at).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     {door.client_name && (
@@ -221,7 +221,7 @@ export default function DashboardPage() {
               )
             })}
             {filtered.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF', fontSize: 14 }}>
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#374151', fontSize: 14 }}>
                 Aucune porte enregistrée
               </div>
             )}
@@ -241,7 +241,7 @@ function StatCard({ label, value, valueColor }: { label: string; value: any; val
       border: '1px solid #E5E7EB',
       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
     }}>
-      <p style={{ color: '#9CA3AF', fontSize: 12, fontWeight: 500, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
+      <p style={{ color: '#374151', fontSize: 12, fontWeight: 500, margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</p>
       <p style={{ color: valueColor, fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
     </div>
   )
