@@ -52,6 +52,8 @@ export interface Door {
   follow_up_date?: string | null
   client_name?: string | null
   phone?: string | null
+  created_at?: string
+  profiles?: { full_name: string; color: string }
 }
 
 type Step = 'repondu' | 'close' | 'vente' | 'objection'
@@ -116,6 +118,17 @@ function FocusTextarea({ placeholder, value, onChange, rows = 2 }: {
   )
 }
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 10)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+function isPhoneValid(value: string): boolean {
+  return value.replace(/\D/g, '').length >= 10
+}
+
 export default function DoorForm({ coords, onSave, onClose, mode = 'create', initialData }: Props) {
   const isEdit = mode === 'edit'
 
@@ -130,9 +143,12 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
   const [followUpDate, setFollowUpDate] = useState(initialData?.follow_up_date || '')
   const [clientName, setClientName] = useState(initialData?.client_name || '')
   const [phone, setPhone] = useState(initialData?.phone || '')
-  const [showOptional, setShowOptional] = useState(!!(initialData?.client_name || initialData?.phone))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [venteSubmitAttempted, setVenteSubmitAttempted] = useState(false)
+
+  const isEditVendu = isEdit && editStatus === 'vendu'
+  const isEditClientValid = !isEditVendu || (clientName.trim().length > 0 && isPhoneValid(phone))
 
   const buildPayload = (overrideData?: any) => ({
     service_type: service || null,
@@ -157,6 +173,10 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
   // Edit mode: update directly in Supabase, then notify parent to refetch
   const saveEdit = async () => {
     if (!initialData) return
+    if (!isEditClientValid) {
+      setError('Veuillez entrer le nom et le téléphone du client pour enregistrer une vente.')
+      return
+    }
     setSaving(true)
     setError('')
     const { error: supaErr } = await supabase
@@ -177,6 +197,9 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
 
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 9999 }}>
+      <style>{`
+        @keyframes mw-client-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+      `}</style>
       <div style={{ background: '#FFFFFF', width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '92vh', overflowY: 'auto', fontFamily: 'Inter, sans-serif' }}>
 
         {/* Handle */}
@@ -209,7 +232,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                   {STATUSES.map(s => {
                     const active = editStatus === s.value
                     return (
-                      <button key={s.value} onClick={() => setEditStatus(s.value)} style={{
+                      <button key={s.value} onClick={() => { setEditStatus(s.value); setError('') }} style={{
                         padding: '10px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500,
                         border: `1.5px solid ${active ? 'transparent' : '#E5E7EB'}`,
                         background: active ? s.activeBg : s.bg,
@@ -223,6 +246,33 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                   })}
                 </div>
               </Field>
+
+              {/* Infos client — optionnelles ou obligatoires selon statut vendu */}
+              <div style={{
+                borderLeft: isEditVendu ? '3px solid #69C9CA' : '3px solid transparent',
+                background: isEditVendu ? '#E8F8F8' : 'transparent',
+                padding: isEditVendu ? '16px' : '0',
+                borderRadius: isEditVendu ? 8 : 0,
+                transition: 'background 200ms ease, padding 200ms ease, border-color 200ms ease',
+              }}>
+                {isEditVendu && (
+                  <p style={{
+                    color: '#0D6E6F', fontWeight: 700, fontSize: 14,
+                    margin: '0 0 12px',
+                    animation: 'mw-client-in 200ms ease both',
+                  }}>
+                    Informations client requises
+                  </p>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <Field label={isEditVendu ? 'Nom complet *' : 'Nom client'}>
+                    <FocusInput placeholder="Jean Tremblay" value={clientName} onChange={e => setClientName(e.target.value)} />
+                  </Field>
+                  <Field label={isEditVendu ? 'Téléphone *' : 'Téléphone'}>
+                    <FocusInput type="tel" placeholder="(514) 555-1234" value={phone} onChange={e => setPhone(formatPhone(e.target.value))} />
+                  </Field>
+                </div>
+              </div>
 
               {/* Service */}
               <Field label="Service">
@@ -253,16 +303,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                     onFocus={e => { e.target.style.borderColor = '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
                     onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
                   />
-                </Field>
-              </div>
-
-              {/* Client */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Field label="Nom client">
-                  <FocusInput placeholder="Jean Tremblay" value={clientName} onChange={e => setClientName(e.target.value)} />
-                </Field>
-                <Field label="Téléphone">
-                  <FocusInput type="tel" placeholder="514-000-0000" value={phone} onChange={e => setPhone(e.target.value)} />
                 </Field>
               </div>
 
@@ -323,19 +363,24 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
               )}
 
               {/* Bouton mise à jour */}
-              <button onClick={saveEdit} disabled={saving} style={{
-                background: saving ? '#E5E7EB' : '#69C9CA',
-                color: saving ? '#9CA3AF' : '#000000',
+              <button onClick={saveEdit} disabled={saving || !isEditClientValid} style={{
+                background: saving || !isEditClientValid ? '#E5E7EB' : '#69C9CA',
+                color: saving || !isEditClientValid ? '#9CA3AF' : '#000000',
                 fontWeight: 600, padding: '14px', borderRadius: 10, fontSize: 15,
-                border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
+                border: 'none', cursor: saving || !isEditClientValid ? 'not-allowed' : 'pointer',
                 minHeight: 48, fontFamily: 'Inter, sans-serif', transition: 'background 150ms',
               }}>
                 {saving ? 'Mise à jour...' : 'Mettre à jour'}
               </button>
+              {isEditVendu && !isEditClientValid && (
+                <p style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', margin: 0 }}>
+                  Veuillez entrer le nom et le téléphone du client pour enregistrer une vente.
+                </p>
+              )}
             </div>
           )}
 
-          {/* ──────────── MODE CRÉATION (flow identique à avant) ──────────── */}
+          {/* ──────────── MODE CRÉATION ──────────── */}
           {!isEdit && (
             <>
               {step === 'repondu' && (
@@ -368,54 +413,88 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 </div>
               )}
 
-              {step === 'vente' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981' }} />
-                    <p style={{ color: '#10B981', fontWeight: 700, fontSize: 18, margin: 0 }}>Vente !</p>
+              {step === 'vente' && (() => {
+                const venteClientValid = clientName.trim().length > 0 && isPhoneValid(phone)
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981' }} />
+                      <p style={{ color: '#10B981', fontWeight: 700, fontSize: 18, margin: 0 }}>Vente !</p>
+                    </div>
+
+                    {/* Section client requise */}
+                    <div style={{
+                      borderLeft: '3px solid #69C9CA',
+                      background: '#E8F8F8',
+                      padding: 16,
+                      borderRadius: 8,
+                    }}>
+                      <p style={{ color: '#0D6E6F', fontWeight: 700, fontSize: 14, margin: '0 0 12px' }}>
+                        Informations client requises
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <Field label="Nom complet *">
+                          <FocusInput placeholder="Jean Tremblay" value={clientName} onChange={e => setClientName(e.target.value)} />
+                        </Field>
+                        <Field label="Téléphone *">
+                          <FocusInput type="tel" placeholder="(514) 555-1234" value={phone} onChange={e => setPhone(formatPhone(e.target.value))} />
+                        </Field>
+                      </div>
+                    </div>
+
+                    <Field label="Service vendu">
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {SERVICES.map(s => (
+                          <button key={s.value} onClick={() => setService(s.value)} style={{
+                            padding: '10px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                            border: `1.5px solid ${service === s.value ? '#69C9CA' : '#E5E7EB'}`,
+                            background: service === s.value ? '#E8F8F8' : '#FFFFFF',
+                            color: service === s.value ? '#0D6E6F' : '#374151',
+                            cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif', transition: 'all 150ms ease',
+                          }}>{s.label}</button>
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label="Montant ($)">
+                      <FocusInput type="number" placeholder="Ex: 250" value={amount} onChange={e => setAmount(e.target.value)} />
+                    </Field>
+                    <Field label="Date prévue">
+                      <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)}
+                        style={fieldInput}
+                        onFocus={e => { e.target.style.borderColor = '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
+                        onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
+                      />
+                    </Field>
+                    <Field label="Notes">
+                      <FocusTextarea placeholder="Particularités..." value={notes} onChange={e => setNotes(e.target.value)} />
+                    </Field>
+
+                    {venteSubmitAttempted && !venteClientValid && (
+                      <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', color: '#991B1B', fontSize: 14 }}>
+                        Veuillez entrer le nom et le téléphone du client pour enregistrer une vente.
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setVenteSubmitAttempted(true)
+                        if (!venteClientValid) return
+                        save({ status: 'vendu' })
+                      }}
+                      disabled={saving}
+                      style={{
+                        background: saving ? '#E5E7EB' : !venteClientValid ? '#D1D5DB' : '#10B981',
+                        color: saving || !venteClientValid ? '#9CA3AF' : '#FFFFFF',
+                        fontWeight: 600, padding: '14px', borderRadius: 10, fontSize: 15,
+                        border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
+                        minHeight: 48, fontFamily: 'Inter, sans-serif', transition: 'background 150ms',
+                      }}
+                    >
+                      {saving ? 'Enregistrement...' : '✓ Enregistrer la vente'}
+                    </button>
                   </div>
-                  <Field label="Service vendu">
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      {SERVICES.map(s => (
-                        <button key={s.value} onClick={() => setService(s.value)} style={{
-                          padding: '10px 12px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-                          border: `1.5px solid ${service === s.value ? '#69C9CA' : '#E5E7EB'}`,
-                          background: service === s.value ? '#E8F8F8' : '#FFFFFF',
-                          color: service === s.value ? '#0D6E6F' : '#374151',
-                          cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif', transition: 'all 150ms ease',
-                        }}>{s.label}</button>
-                      ))}
-                    </div>
-                  </Field>
-                  <Field label="Montant ($)">
-                    <FocusInput type="number" placeholder="Ex: 250" value={amount} onChange={e => setAmount(e.target.value)} />
-                  </Field>
-                  <Field label="Date prévue">
-                    <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)}
-                      style={fieldInput}
-                      onFocus={e => { e.target.style.borderColor = '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
-                      onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
-                    />
-                  </Field>
-                  <Field label="Notes">
-                    <FocusTextarea placeholder="Particularités..." value={notes} onChange={e => setNotes(e.target.value)} />
-                  </Field>
-                  <button onClick={() => setShowOptional(!showOptional)}
-                    style={{ color: '#69C9CA', fontSize: 13, fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif' }}>
-                    {showOptional ? '− Masquer infos client' : '+ Infos client (optionnel)'}
-                  </button>
-                  {showOptional && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      <FocusInput placeholder="Nom du client" value={clientName} onChange={e => setClientName(e.target.value)} />
-                      <FocusInput type="tel" placeholder="Téléphone" value={phone} onChange={e => setPhone(e.target.value)} />
-                    </div>
-                  )}
-                  <button onClick={() => save({ status: 'vendu' })} disabled={saving}
-                    style={{ background: saving ? '#E5E7EB' : '#10B981', color: saving ? '#9CA3AF' : '#FFFFFF', fontWeight: 600, padding: '14px', borderRadius: 10, fontSize: 15, border: 'none', cursor: saving ? 'not-allowed' : 'pointer', minHeight: 48, fontFamily: 'Inter, sans-serif', transition: 'background 150ms' }}>
-                    {saving ? 'Enregistrement...' : '✓ Enregistrer la vente'}
-                  </button>
-                </div>
-              )}
+                )
+              })()}
 
               {step === 'objection' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
