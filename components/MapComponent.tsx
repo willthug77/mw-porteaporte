@@ -69,14 +69,14 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
 
       L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-      // Géolocalisation temps réel
+      // Géolocalisation temps réel — marqueur teal MW
       const updateUserPos = (pos: GeolocationPosition) => {
         const { latitude, longitude } = pos.coords
         if (userMarkerRef.current) {
           userMarkerRef.current.setLatLng([latitude, longitude])
         } else {
           const icon = L.divIcon({
-            html: `<div style="width:20px;height:20px;border-radius:50%;background:#2563EB;border:3px solid white;box-shadow:0 0 0 5px rgba(37,99,235,0.25)"></div>`,
+            html: `<div style="width:20px;height:20px;border-radius:50%;background:#69C9CA;border:3px solid white;box-shadow:0 0 0 5px rgba(105,201,202,0.25)"></div>`,
             className: '',
             iconSize: [20, 20],
             iconAnchor: [10, 10],
@@ -176,7 +176,7 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
     markersRef.current.forEach(m => m.remove())
     markersRef.current = []
     doors.forEach(door => {
-      const vendeurColor = door.profiles?.color || '#3B82F6'
+      const vendeurColor = door.profiles?.color || '#69C9CA'
       const outerColor = door.status === 'vendu' ? '#10B981' : '#EF4444'
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
         <path d="M16 0C7.2 0 0 7.2 0 16c0 11 16 24 16 24S32 27 32 16C32 7.2 24.8 0 16 0z"
@@ -206,13 +206,22 @@ export default function MapComponent({ doors, onLongPress, onDoorClick }: Props)
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-      <button onClick={recenter} style={{
-        position: 'absolute', bottom: 80, right: 12, zIndex: 1000,
-        background: 'white', border: 'none', borderRadius: '50%',
-        width: 44, height: 44, cursor: 'pointer',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20
-      }}>📍</button>
+      <button
+        onClick={recenter}
+        style={{
+          position: 'absolute', bottom: 80, right: 12, zIndex: 1000,
+          background: 'white',
+          border: '1px solid #E5E7EB',
+          borderRadius: '50%',
+          width: 44, height: 44,
+          cursor: 'pointer',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 18,
+        }}
+      >
+        📍
+      </button>
     </div>
   )
 }

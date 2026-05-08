@@ -4,14 +4,15 @@ import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import DoorForm from '@/components/DoorForm'
 import PinPopup from '@/components/PinPopup'
+import { Plus } from 'lucide-react'
 
 const MapComponent = dynamic(
   () => import('@/components/MapComponent').then(mod => ({ default: mod.default })),
   {
     ssr: false,
     loading: () => (
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0F172A' }}>
-        <p style={{ color: '#64748B', fontSize: 14 }}>Chargement de la carte...</p>
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F1F2F2' }}>
+        <p style={{ color: '#9CA3AF', fontSize: 14, fontFamily: 'Inter, sans-serif' }}>Chargement de la carte...</p>
       </div>
     ),
   }
@@ -91,23 +92,41 @@ export default function CartePage() {
   }
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', fontFamily: 'Inter, sans-serif' }}>
       <MapComponent doors={doors} onLongPress={handleLongPress} onDoorClick={handleDoorClick} />
 
-      {/* Header */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 16, pointerEvents: 'none', zIndex: 1000 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ background: 'rgba(15,23,42,0.9)', backdropFilter: 'blur(8px)', borderRadius: 12, padding: '6px 14px' }}>
-            <span style={{ color: 'white', fontWeight: 600, fontSize: 14 }}>{profile?.full_name || '...'}</span>
+      {/* Header flottant */}
+      <div style={{ position: 'absolute', top: 12, left: 12, right: 12, pointerEvents: 'none', zIndex: 1000 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: 10,
+            padding: '8px 14px',
+            border: '1px solid rgba(229,231,235,0.8)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          }}>
+            <span style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>
+              {profile?.full_name || '…'}
+            </span>
           </div>
-          <div style={{ background: 'rgba(15,23,42,0.9)', backdropFilter: 'blur(8px)', borderRadius: 12, padding: '6px 12px' }}>
-            <span style={{ color: '#94A3B8', fontSize: 12 }}>{doors.length} portes</span>
+          <div style={{
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: 10,
+            padding: '8px 12px',
+            border: '1px solid rgba(229,231,235,0.8)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          }}>
+            <span style={{ color: '#6B7280', fontSize: 13, fontWeight: 500 }}>
+              {doors.length} portes
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Bouton ajouter */}
-      <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
+      {/* Bouton Nouvelle porte */}
+      <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
         <button
           onClick={async () => {
             navigator.geolocation.getCurrentPosition(
@@ -122,8 +141,33 @@ export default function CartePage() {
               }
             )
           }}
-          style={{ background: '#2563EB', color: 'white', fontWeight: 700, padding: '16px 32px', borderRadius: 20, fontSize: 16, border: 'none', cursor: 'pointer', boxShadow: '0 8px 32px rgba(37,99,235,0.4)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 20 }}>+</span> Nouvelle porte
+          style={{
+            background: '#69C9CA',
+            color: '#000000',
+            fontWeight: 600,
+            padding: '13px 28px',
+            borderRadius: 12,
+            fontSize: 15,
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(105,201,202,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontFamily: 'Inter, sans-serif',
+            transition: 'background 150ms ease, box-shadow 150ms ease',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = '#4AADAE'
+            e.currentTarget.style.boxShadow = '0 4px 24px rgba(74,173,174,0.5)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = '#69C9CA'
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(105,201,202,0.45)'
+          }}
+        >
+          <Plus size={18} strokeWidth={2.5} />
+          Nouvelle porte
         </button>
       </div>
 
