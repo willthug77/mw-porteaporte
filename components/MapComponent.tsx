@@ -19,7 +19,7 @@ interface Door {
 
 interface Props {
   doors: Door[]
-  onLongPress: (lat: number, lng: number, address: string) => void
+  onLongPress: (lat: number, lng: number, address: string, approximate: boolean) => void
   onDoorClick: (door: Door) => void
   clearTempMarkerSignal?: number
   // When set (id changes), place temp marker + recenter map — used for search-modal flow
@@ -152,8 +152,10 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
           if (!movedRef.current) {
             placeTempMarker(lat, lng)
             const result = await reverseGeocode(lat, lng)
+            const approximate = result?.approximate ?? true
             const address = result?.formatted || `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-            onLongPress(lat, lng, address)
+            console.log('[LongPress] lat:', lat, 'lng:', lng, 'source: desktop')
+            onLongPress(lat, lng, address, approximate)
           }
         }, 700)
       })
@@ -190,17 +192,20 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
         const touch = e.touches[0]
         pressStartRef.current = { x: touch.clientX, y: touch.clientY }
         movedRef.current = false
-        const rect = container.getBoundingClientRect()
         const cx = touch.clientX
         const cy = touch.clientY
         pressTimerRef.current = setTimeout(async () => {
           if (!movedRef.current) {
+            // rect recalculated at trigger time — not at touchstart — to account for any layout shift during the 700ms hold
+            const rect = container.getBoundingClientRect()
             const point = map.containerPointToLatLng(L.point(cx - rect.left, cy - rect.top))
             if (navigator.vibrate) navigator.vibrate(50)
             placeTempMarker(point.lat, point.lng)
             const result = await reverseGeocode(point.lat, point.lng)
+            const approximate = result?.approximate ?? true
             const address = result?.formatted || `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`
-            onLongPress(point.lat, point.lng, address)
+            console.log('[LongPress] lat:', point.lat, 'lng:', point.lng, 'source: mobile')
+            onLongPress(point.lat, point.lng, address, approximate)
           }
         }, 700)
       }

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import AddressDisplay from '@/components/AddressDisplay'
@@ -59,12 +59,13 @@ export interface Door {
 type Step = 'repondu' | 'close' | 'vente' | 'objection'
 
 interface Props {
-  coords: { lat: number; lng: number; address?: string }
+  coords: { lat: number; lng: number; address?: string; approximate?: boolean }
   profile: any
   onSave: (data: any) => void
   onClose: () => void
   mode?: 'create' | 'edit'
   initialData?: Door
+  onAddressSelect?: (lat: number, lng: number, address: string) => void
 }
 
 const fieldInput: React.CSSProperties = {
@@ -130,7 +131,7 @@ function isPhoneValid(value: string): boolean {
   return value.replace(/\D/g, '').length >= 10
 }
 
-export default function DoorForm({ coords, onSave, onClose, mode = 'create', initialData }: Props) {
+export default function DoorForm({ coords, onSave, onClose, mode = 'create', initialData, onAddressSelect }: Props) {
   const isEdit = mode === 'edit'
 
   const [step, setStep] = useState<Step>('repondu')
@@ -151,6 +152,48 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
   // Editable address — only shown (and required) in create mode
   const [address, setAddress] = useState(coords.address || '')
   const [addressError, setAddressError] = useState('')
+  const [addressApproximate, setAddressApproximate] = useState(coords.approximate ?? false)
+  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const debounceRef = useRef<any>(null)
+
+  const handleAddressChange = (val: string) => {
+    setAddress(val)
+    setAddressError('')
+    setAddressApproximate(false)
+    setShowSuggestions(false)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (val.trim().length < 3) { setAddressSuggestions([]); return }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&addressdetails=1&limit=5&countrycodes=ca&accept-language=fr-CA`,
+          { headers: { 'Accept-Language': 'fr-CA', 'User-Agent': 'MW-Multiservices-App/1.0' } }
+        )
+        if (!res.ok) return
+        const results = await res.json()
+        setAddressSuggestions(results)
+        setShowSuggestions(results.length > 0)
+      } catch {}
+    }, 400)
+  }
+
+  const handleSuggestionSelect = (suggestion: any) => {
+    const lat = parseFloat(suggestion.lat)
+    const lng = parseFloat(suggestion.lon)
+    const a = suggestion.address || {}
+    const house = a.house_number || ''
+    const road = a.road || a.pedestrian || ''
+    const city = a.city || a.town || a.village || a.municipality || ''
+    const postcode = a.postcode || ''
+    const street = [house, road].filter(Boolean).join(' ')
+    const addr = [street, city, postcode].filter(Boolean).join(', ') || suggestion.display_name
+    setAddress(addr)
+    setAddressApproximate(false)
+    setShowSuggestions(false)
+    setAddressSuggestions([])
+    onAddressSelect?.(lat, lng, addr)
+  }
 
   const isEditVendu = isEdit && editStatus === 'vendu'
   const isEditClientValid = !isEditVendu || (clientName.trim().length > 0 && isPhoneValid(phone))
@@ -228,26 +271,57 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>{title}</p>
 
-            {/* Create mode: editable address field */}
+            {/* Create mode: editable address field with autocomplete */}
             {!isEdit && (
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 4 }}>
                   Adresse *
                 </label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={e => { setAddress(e.target.value); setAddressError('') }}
-                  placeholder={coords.address ? '' : 'Récupération de l\'adresse...'}
-                  style={{
-                    ...fieldInput,
-                    fontSize: 13,
-                    padding: '8px 12px',
-                    borderColor: addressError ? '#EF4444' : '#E5E7EB',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = addressError ? '#EF4444' : '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
-                  onBlur={e => { e.target.style.borderColor = addressError ? '#EF4444' : '#E5E7EB'; e.target.style.boxShadow = 'none' }}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={e => handleAddressChange(e.target.value)}
+                    placeholder={coords.address ? '' : "Récupération de l'adresse..."}
+                    style={{
+                      ...fieldInput,
+                      fontSize: 13,
+                      padding: '8px 12px',
+                      borderColor: addressError ? '#EF4444' : '#E5E7EB',
+                    }}
+                    onFocus={e => { e.target.style.borderColor = addressError ? '#EF4444' : '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
+                    onBlur={e => {
+                      e.target.style.borderColor = addressError ? '#EF4444' : '#E5E7EB'
+                      e.target.style.boxShadow = 'none'
+                      setTimeout(() => setShowSuggestions(false), 150)
+                    }}
+                  />
+                  {showSuggestions && addressSuggestions.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.18)', zIndex: 10001, maxHeight: 200, overflowY: 'auto', marginTop: 2 }}>
+                      {addressSuggestions.map((s: any, i: number) => (
+                        <button
+                          key={i}
+                          onMouseDown={() => handleSuggestionSelect(s)}
+                          style={{
+                            display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+                            border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12,
+                            color: '#374151', lineHeight: 1.4, fontFamily: 'Inter, sans-serif',
+                            borderBottom: i < addressSuggestions.length - 1 ? '1px solid #F3F4F6' : 'none',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#F9FAFB' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                        >
+                          {s.display_name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {addressApproximate && !addressError && (
+                  <p style={{ color: '#B45309', fontSize: 12, margin: '4px 0 0', background: '#FEF3C7', padding: '4px 8px', borderRadius: 4 }}>
+                    ⚠ Adresse à valider — numéro non détecté, corrigez ou sélectionnez une suggestion
+                  </p>
+                )}
                 {addressError && (
                   <p style={{ color: '#EF4444', fontSize: 12, margin: '4px 0 0' }}>{addressError}</p>
                 )}

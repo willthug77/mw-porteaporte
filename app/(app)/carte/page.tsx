@@ -23,7 +23,7 @@ export default function CartePage() {
   const [profile, setProfile] = useState<any>(null)
   const [doors, setDoors] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [formCoords, setFormCoords] = useState<{ lat: number; lng: number; address?: string } | null>(null)
+  const [formCoords, setFormCoords] = useState<{ lat: number; lng: number; address?: string; approximate?: boolean } | null>(null)
   const [editDoor, setEditDoor] = useState<Door | null>(null)
   const [detailDoor, setDetailDoor] = useState<DoorDetail | null>(null)
   const [showSearchModal, setShowSearchModal] = useState(false)
@@ -58,8 +58,8 @@ export default function CartePage() {
   }, [loadDoors])
 
   // Shared flow for opening "Nouvelle porte" — called by both long press and search modal
-  const openNewDoorFlow = useCallback((lat: number, lng: number, address: string, triggerMap = false) => {
-    setFormCoords({ lat, lng, address })
+  const openNewDoorFlow = useCallback((lat: number, lng: number, address: string, approximate = false, triggerMap = false) => {
+    setFormCoords({ lat, lng, address, approximate })
     setShowForm(true)
     if (triggerMap) {
       // Tell MapComponent to place temp marker + recenter (search flow only)
@@ -68,10 +68,16 @@ export default function CartePage() {
   }, [])
 
   // MapComponent long press callback
-  const handleLongPress = useCallback((lat: number, lng: number, address: string) => {
+  const handleLongPress = useCallback((lat: number, lng: number, address: string, approximate: boolean) => {
     // MapComponent already placed the temp marker; just open the form
-    openNewDoorFlow(lat, lng, address, false)
+    openNewDoorFlow(lat, lng, address, approximate, false)
   }, [openNewDoorFlow])
+
+  // DoorForm autocomplete selection — update map position and stored coords
+  const handleAddressSelect = useCallback((lat: number, lng: number, address: string) => {
+    setFormCoords(prev => prev ? { ...prev, lat, lng, address, approximate: false } : null)
+    setExternalTrigger({ lat, lng, id: Date.now() })
+  }, [])
 
   // Clic sur un pin → DoorDetailSheet (lecture seule)
   const handleDoorClick = useCallback((door: any) => {
@@ -177,7 +183,7 @@ export default function CartePage() {
         <AddressSearchModal
           onSelect={(lat, lng, address) => {
             setShowSearchModal(false)
-            openNewDoorFlow(lat, lng, address, true) // triggerMap=true → recenter + temp marker
+            openNewDoorFlow(lat, lng, address, false, true) // approximate=false (confirmed), triggerMap=true
           }}
           onClose={() => setShowSearchModal(false)}
         />
@@ -191,6 +197,7 @@ export default function CartePage() {
           mode="create"
           onSave={handleFormSave}
           onClose={handleFormClose}
+          onAddressSelect={handleAddressSelect}
         />
       )}
 
