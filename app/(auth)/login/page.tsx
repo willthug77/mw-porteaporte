@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -24,58 +25,161 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0F1E', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      
-      {/* Background gradient */}
-      <div style={{ position: 'fixed', inset: 0, background: 'radial-gradient(ellipse at top, #1a2744 0%, #0A0F1E 70%)', zIndex: 0 }} />
-      
-      <div style={{ width: '100%', maxWidth: 380, position: 'relative', zIndex: 1 }}>
-        
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(160deg, #000000 0%, #0D1F1F 100%)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      fontFamily: 'Inter, sans-serif',
+    }}>
+
+      <div style={{ width: '100%', maxWidth: 400 }}>
+
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 80, height: 80, background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', borderRadius: 24, marginBottom: 20, boxShadow: '0 8px 32px rgba(37,99,235,0.4)' }}>
-            <span style={{ color: 'white', fontWeight: 900, fontSize: 28, letterSpacing: -1 }}>MW</span>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+            <Image
+              src="/logo-mw.svg"
+              alt="MW Multiservices"
+              width={160}
+              height={56}
+              style={{ filter: 'brightness(0) invert(1)' }}
+              priority
+            />
           </div>
-          <h1 style={{ color: 'white', fontWeight: 800, fontSize: 26, margin: 0, letterSpacing: -0.5 }}>MW Multiservices</h1>
-          <p style={{ color: '#64748B', marginTop: 6, fontSize: 14 }}>Application terrain — Porte-à-porte</p>
+          <p style={{ color: '#6B7280', fontSize: 14, margin: 0 }}>
+            Application terrain — Porte-à-porte
+          </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <input
-            type="email"
-            placeholder="Adresse email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '16px 18px', color: 'white', fontSize: 16, outline: 'none', width: '100%' }}
-          />
-          <input
-            type="password"
-            placeholder="Mot de passe"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '16px 18px', color: 'white', fontSize: 16, outline: 'none', width: '100%' }}
-          />
+        {/* Carte formulaire */}
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: 16,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          padding: 32,
+        }}>
+          <h1 style={{
+            color: '#000000',
+            fontSize: 24,
+            fontWeight: 600,
+            margin: '0 0 24px',
+            letterSpacing: '-0.01em',
+          }}>
+            Connexion
+          </h1>
 
-          {error && (
-            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '10px 14px', color: '#FCA5A5', fontSize: 14 }}>
-              {error}
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+                Adresse email
+              </label>
+              <input
+                type="email"
+                placeholder="vous@exemple.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  fontSize: 15,
+                  color: '#1F2937',
+                  outline: 'none',
+                  transition: 'border-color 150ms, box-shadow 150ms',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = '#69C9CA'
+                  e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)'
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = '#E5E7EB'
+                  e.target.style.boxShadow = 'none'
+                }}
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{ background: loading ? '#334155' : 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: 'white', fontWeight: 700, padding: '17px', borderRadius: 14, fontSize: 16, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4, boxShadow: loading ? 'none' : '0 4px 20px rgba(37,99,235,0.4)' }}>
-            {loading ? 'Connexion...' : 'Se connecter'}
-          </button>
-        </form>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+                Mot de passe
+              </label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  fontSize: 15,
+                  color: '#1F2937',
+                  outline: 'none',
+                  transition: 'border-color 150ms, box-shadow 150ms',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = '#69C9CA'
+                  e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)'
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = '#E5E7EB'
+                  e.target.style.boxShadow = 'none'
+                }}
+              />
+            </div>
 
-        <p style={{ textAlign: 'center', color: '#475569', fontSize: 14, marginTop: 24 }}>
+            {error && (
+              <div style={{
+                background: '#FEE2E2',
+                border: '1px solid #FECACA',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: '#991B1B',
+                fontSize: 14,
+              }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                background: loading ? '#E5E7EB' : '#69C9CA',
+                color: loading ? '#9CA3AF' : '#000000',
+                fontWeight: 600,
+                padding: '11px 20px',
+                borderRadius: 8,
+                fontSize: 15,
+                border: 'none',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                marginTop: 4,
+                minHeight: 44,
+                transition: 'background 150ms ease',
+                fontFamily: 'Inter, sans-serif',
+              }}
+              onMouseEnter={e => { if (!loading) (e.target as HTMLButtonElement).style.background = '#4AADAE' }}
+              onMouseLeave={e => { if (!loading) (e.target as HTMLButtonElement).style.background = '#69C9CA' }}
+            >
+              {loading ? 'Connexion...' : 'Se connecter'}
+            </button>
+          </form>
+        </div>
+
+        <p style={{ textAlign: 'center', color: '#6B7280', fontSize: 14, marginTop: 24 }}>
           Pas de compte ?{' '}
-          <a href="/signup" style={{ color: '#60A5FA', fontWeight: 600, textDecoration: 'none' }}>Créer un compte</a>
+          <a href="/signup" style={{ color: '#69C9CA', fontWeight: 600, textDecoration: 'none' }}>
+            Créer un compte
+          </a>
         </p>
       </div>
     </div>
