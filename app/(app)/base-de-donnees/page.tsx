@@ -297,7 +297,7 @@ function AddClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   const [error, setError]           = useState('')
 
   useEffect(() => {
-    supabase.from('profiles').select('id, full_name').eq('role', 'vendeur').order('full_name')
+    supabase.from('profiles').select('id, full_name').order('full_name')
       .then(({ data }) => {
         const list = data || []
         setVendeurs(list)
