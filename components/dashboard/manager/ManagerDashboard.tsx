@@ -34,8 +34,12 @@ import {
   DEFAULT_DAILY_GOAL,
 } from '@/lib/config'
 import { supabase } from '@/lib/supabase'
+import DoorForm from '@/components/DoorForm'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-type Tab = 'global' | 'equipe' | 'analytiques' | 'alertes'
+type Tab = 'global' | 'equipe' | 'analytiques' | 'alertes' | 'portes'
+
+const DOORS_PAGE_SIZE = 20
 
 const STATUS_LABELS: Record<string, string> = {
   pas_repondu: 'Sans réponse',
@@ -65,6 +69,18 @@ export default function ManagerDashboard() {
   const [hourData, setHourData] = useState<Array<{ heure: number; count: number }>>([])
   const [vendeurDoors, setVendeurDoors] = useState<any[]>([])
   const [objectifs, setObjectifs] = useState<Record<string, number>>({})
+
+  // ── Portes tab state ──
+  const [allDoors, setAllDoors]       = useState<any[]>([])
+  const [doorsLoading, setDoorsLoading] = useState(false)
+  const [doorsLoaded, setDoorsLoaded] = useState(false)
+  const [editDoor, setEditDoor]       = useState<any | null>(null)
+  const [doorsSearch, setDoorsSearch] = useState('')
+  const [doorsVendeur, setDoorsVendeur] = useState('')
+  const [doorsStatus, setDoorsStatus]   = useState('')
+  const [doorsDateFrom, setDoorsDateFrom] = useState('')
+  const [doorsDateTo, setDoorsDateTo]     = useState('')
+  const [doorsPage, setDoorsPage] = useState(1)
 
   const { stats, vendeurStats, dernieresPortes, chartData, vendeurs, loading, refetch } =
     useDashboardManager()
@@ -118,6 +134,24 @@ export default function ManagerDashboard() {
     setObjectifsInput(next)
   }
 
+  const loadAllDoors = async () => {
+    setDoorsLoading(true)
+    const { data } = await supabase
+      .from('doors')
+      .select('*, profiles(full_name, color)')
+      .order('created_at', { ascending: false })
+    setAllDoors(data || [])
+    setDoorsLoading(false)
+    setDoorsLoaded(true)
+  }
+
+  useEffect(() => {
+    if (activeTab === 'portes' && !doorsLoaded) {
+      loadAllDoors()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
   const todayDate = new Date().toLocaleDateString('fr-CA', {
     weekday: 'long',
     day: 'numeric',
@@ -156,11 +190,28 @@ export default function ManagerDashboard() {
   })
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'global', label: 'Global' },
-    { key: 'equipe', label: 'Équipe' },
+    { key: 'global',      label: 'Global' },
+    { key: 'equipe',      label: 'Équipe' },
     { key: 'analytiques', label: 'Analytiques' },
-    { key: 'alertes', label: `Alertes${alerts.length > 0 ? ` (${alerts.length})` : ''}` },
+    { key: 'alertes',     label: `Alertes${alerts.length > 0 ? ` (${alerts.length})` : ''}` },
+    { key: 'portes',      label: 'Portes' },
   ]
+
+  // ── Portes tab computed ──
+  const doorsVendeurOptions = Array.from(
+    new Map(allDoors.filter(d => d.profiles?.full_name).map((d: any) => [d.user_id, d.profiles.full_name])).entries()
+  ).map(([id, name]) => ({ id: id as string, name: name as string }))
+
+  const doorsFiltered = allDoors.filter(door => {
+    if (doorsSearch && !door.address?.toLowerCase().includes(doorsSearch.toLowerCase())) return false
+    if (doorsVendeur && door.user_id !== doorsVendeur) return false
+    if (doorsStatus && door.status !== doorsStatus) return false
+    if (doorsDateFrom && door.created_at < doorsDateFrom) return false
+    if (doorsDateTo && door.created_at > doorsDateTo + 'T23:59:59') return false
+    return true
+  })
+  const doorsTotalPages = Math.max(1, Math.ceil(doorsFiltered.length / DOORS_PAGE_SIZE))
+  const doorsPaginated  = doorsFiltered.slice((doorsPage - 1) * DOORS_PAGE_SIZE, doorsPage * DOORS_PAGE_SIZE)
 
   if (loading) return <SkeletonDashboard />
 
@@ -822,7 +873,143 @@ export default function ManagerDashboard() {
             )}
           </div>
         )}
+        {/* ---- PORTES ---- */}
+        {activeTab === 'portes' && (
+          <div style={{ padding: '16px 16px 40px' }}>
+
+            {/* Filters */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+              <input
+                type="text" value={doorsSearch} placeholder="Rechercher une adresse..."
+                onChange={e => { setDoorsSearch(e.target.value); setDoorsPage(1) }}
+                style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif', flex: '1 1 180px', minWidth: 0 }}
+                onFocus={e => { e.target.style.borderColor = '#69C9CA' }}
+                onBlur={e => { e.target.style.borderColor = '#E5E7EB' }}
+              />
+              <select value={doorsVendeur} onChange={e => { setDoorsVendeur(e.target.value); setDoorsPage(1) }}
+                style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif', flex: '1 1 120px', minWidth: 0, background: '#FFF' }}>
+                <option value="">Tous les vendeurs</option>
+                {doorsVendeurOptions.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+              <select value={doorsStatus} onChange={e => { setDoorsStatus(e.target.value); setDoorsPage(1) }}
+                style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif', flex: '1 1 120px', minWidth: 0, background: '#FFF' }}>
+                <option value="">Tous les statuts</option>
+                {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              <input type="date" value={doorsDateFrom} onChange={e => { setDoorsDateFrom(e.target.value); setDoorsPage(1) }}
+                style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif', flex: '1 1 120px', minWidth: 0 }} />
+              <input type="date" value={doorsDateTo} onChange={e => { setDoorsDateTo(e.target.value); setDoorsPage(1) }}
+                style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Inter, sans-serif', flex: '1 1 120px', minWidth: 0 }} />
+              {(doorsSearch || doorsVendeur || doorsStatus || doorsDateFrom || doorsDateTo) && (
+                <button onClick={() => { setDoorsSearch(''); setDoorsVendeur(''); setDoorsStatus(''); setDoorsDateFrom(''); setDoorsDateTo(''); setDoorsPage(1) }}
+                  style={{ border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 13, cursor: 'pointer', background: '#F3F4F6', color: '#374151', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+
+            <p style={{ color: '#6B7280', fontSize: 12, margin: '0 0 10px' }}>{doorsFiltered.length} porte{doorsFiltered.length !== 1 ? 's' : ''}</p>
+
+            {/* List */}
+            {doorsLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+                <div style={{ width: 28, height: 28, border: '3px solid rgba(105,201,202,0.2)', borderTopColor: '#69C9CA', borderRadius: '50%', animation: 'mw-spin 0.8s linear infinite' }} />
+                <style>{`@keyframes mw-spin { to { transform: rotate(360deg); } }`}</style>
+              </div>
+            ) : doorsPaginated.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#6B7280' }}>
+                <p style={{ fontWeight: 500, fontSize: 14, margin: '0 0 4px', color: '#374151' }}>Aucune porte trouvée</p>
+                {(doorsSearch || doorsVendeur || doorsStatus || doorsDateFrom || doorsDateTo) && (
+                  <p style={{ fontSize: 13, margin: 0 }}>Essayez de réinitialiser les filtres</p>
+                )}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {doorsPaginated.map((door: any) => {
+                    const badge = STATUS_BADGE[door.status] || { bg: '#F3F4F6', color: '#6B7280' }
+                    const prof = door.profiles as any
+                    return (
+                      <div key={door.id} style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                        {/* Line 1: address + badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <p style={{ color: '#111827', fontWeight: 600, fontSize: 14, margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {door.address || door.client_name || '—'}
+                          </p>
+                          <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color, flexShrink: 0 }}>
+                            {STATUS_LABELS[door.status] || door.status}
+                          </span>
+                        </div>
+                        {/* Line 2: vendeur + date */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: door.service_type || door.client_name ? 4 : 0, flexWrap: 'wrap' }}>
+                          {prof?.full_name && (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ width: 10, height: 10, borderRadius: '50%', background: prof.color || '#69C9CA' }} />
+                              <span style={{ color: '#6B7280', fontSize: 12 }}>{prof.full_name}</span>
+                            </span>
+                          )}
+                          <span style={{ color: '#9CA3AF', fontSize: 11 }}>
+                            {new Date(door.created_at).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        </div>
+                        {/* Line 3: service+price or client */}
+                        {(door.status === 'vendu' && (door.service_type || door.contract_value != null)) && (
+                          <p style={{ color: '#065F46', fontSize: 13, margin: '0 0 2px', fontWeight: 600 }}>
+                            {door.service_type || ''}{door.contract_value ? ` · ${Number(door.contract_value).toLocaleString('fr-CA')} $` : ''}
+                          </p>
+                        )}
+                        {door.client_name && (
+                          <p style={{ color: '#374151', fontSize: 12, margin: '0 0 2px' }}>
+                            {door.client_name}{door.phone ? ` · ${door.phone}` : ''}
+                          </p>
+                        )}
+                        {/* Line 4: notes */}
+                        {door.notes && (
+                          <p style={{ color: '#9CA3AF', fontSize: 11, margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {door.notes.length > 60 ? door.notes.slice(0, 60) + '…' : door.notes}
+                          </p>
+                        )}
+                        {/* Button */}
+                        <button onClick={() => setEditDoor(door)}
+                          style={{ marginTop: 10, width: '100%', background: '#69C9CA', color: '#000', border: 'none', borderRadius: 8, padding: '9px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                          Voir / Modifier
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Pagination */}
+                {doorsTotalPages > 1 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '16px 0 0' }}>
+                    <button onClick={() => setDoorsPage(p => Math.max(1, p - 1))} disabled={doorsPage === 1}
+                      style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', cursor: doorsPage === 1 ? 'not-allowed' : 'pointer', opacity: doorsPage === 1 ? 0.5 : 1, display: 'flex', alignItems: 'center' }}>
+                      <ChevronLeft size={16} color="#374151" />
+                    </button>
+                    <span style={{ color: '#374151', fontSize: 13, fontWeight: 500 }}>{doorsPage} / {doorsTotalPages}</span>
+                    <button onClick={() => setDoorsPage(p => Math.min(doorsTotalPages, p + 1))} disabled={doorsPage === doorsTotalPages}
+                      style={{ background: '#FFF', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', cursor: doorsPage === doorsTotalPages ? 'not-allowed' : 'pointer', opacity: doorsPage === doorsTotalPages ? 0.5 : 1, display: 'flex', alignItems: 'center' }}>
+                      <ChevronRight size={16} color="#374151" />
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Edit Door Modal */}
+      {editDoor && (
+        <DoorForm
+          coords={{ lat: editDoor.latitude, lng: editDoor.longitude, address: editDoor.address }}
+          profile={{}}
+          onSave={async () => { await loadAllDoors() }}
+          onClose={() => setEditDoor(null)}
+          mode="edit"
+          initialData={editDoor}
+        />
+      )}
 
       {/* VendeurDetail Modal */}
       {selectedVendeur && (

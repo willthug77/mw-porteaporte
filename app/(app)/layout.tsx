@@ -4,24 +4,41 @@ import { useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Map, BarChart2, User } from 'lucide-react'
+import { Map, BarChart2, User, Database } from 'lucide-react'
 import AppHeader from '@/components/AppHeader'
 
-const NAV = [
-  { href: '/carte', label: 'Carte', Icon: Map },
-  { href: '/dashboard', label: 'Dashboard', Icon: BarChart2 },
+const NAV_BASE = [
+  { href: '/carte',      label: 'Carte',      Icon: Map      },
+  { href: '/dashboard',  label: 'Dashboard',  Icon: BarChart2 },
+]
+
+const NAV_MANAGER_EXTRA = [
+  { href: '/base-de-donnees', label: 'Base',  Icon: Database },
+]
+
+const NAV_PROFIL = [
   { href: '/profil', label: 'Profil', Icon: User },
 ]
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
+  const router   = useRouter()
   const pathname = usePathname()
   const [loading, setLoading] = useState(true)
+  const [role, setRole]       = useState<string>('vendeur')
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) router.push('/login')
-      else setLoading(false)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) {
+        router.push('/login')
+        return
+      }
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+      setRole(profileData?.role ?? 'vendeur')
+      setLoading(false)
     })
   }, [router])
 
@@ -58,6 +75,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   )
+
+  const isManager = role === 'manager'
+  const NAV = [
+    ...NAV_BASE,
+    ...(isManager ? NAV_MANAGER_EXTRA : []),
+    ...NAV_PROFIL,
+  ]
 
   return (
     <div style={{
