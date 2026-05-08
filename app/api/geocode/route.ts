@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   }
 
   // 1. geocoder.ca — Canadian geocoder backed by Canada Post / government data
+  // Response is flat JSON: { stnumber, staddress, city, prov, postal, ... }
   try {
     const res = await fetch(
       `https://geocoder.ca/?latt=${lat}&longt=${lng}&reverse=1&json=1`,
@@ -18,18 +19,17 @@ export async function GET(req: NextRequest) {
     )
     if (res.ok) {
       const data = await res.json()
-      const std = data?.standard
-      // stno = house number, stname = street name — both required for a valid result
-      if (std?.stno && String(std.stno).trim() !== '0' && std?.stname) {
-        const parts = [std.stdirpre, std.stname, std.sttype, std.stdirsfx].filter(Boolean)
-        const road = parts.join(' ').trim()
+      const houseNumber = data?.stnumber ? String(data.stnumber).trim() : ''
+      const road = data?.staddress ? String(data.staddress).trim() : ''
+      // Reject if house number missing, zero, or geocoder returned an error
+      if (!data?.error && houseNumber && houseNumber !== '0' && road) {
         return NextResponse.json({
           provider: 'geocoder.ca',
-          house_number: String(std.stno).trim(),
+          house_number: houseNumber,
           road,
-          city: std.city || '',
-          postcode: std.postal || '',
-          raw: std,
+          city: data.city || '',
+          postcode: data.postal || '',
+          raw: data,
         })
       }
     }
