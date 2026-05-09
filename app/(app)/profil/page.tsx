@@ -88,7 +88,8 @@ const MIGRATION_SQL = `-- Ajouter colonnes à profiles
 ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS commission_type  TEXT    DEFAULT 'percent',
   ADD COLUMN IF NOT EXISTS commission_value NUMERIC DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS phone            TEXT;
+  ADD COLUMN IF NOT EXISTS phone            TEXT,
+  ADD COLUMN IF NOT EXISTS daily_goal       INTEGER DEFAULT 0;
 
 -- Créer table app_settings
 CREATE TABLE IF NOT EXISTS app_settings (

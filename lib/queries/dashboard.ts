@@ -187,7 +187,7 @@ export async function getDernieresPortes(limit: number, userId?: string): Promis
 export async function getAllVendeurs(): Promise<any[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, email, color, created_at')
+    .select('id, full_name, email, color, created_at, daily_goal, commission_type, commission_value')
     .eq('role', 'vendeur')
 
   return data ?? []
@@ -199,6 +199,129 @@ export async function getVendeurStats(): Promise<any[]> {
     .select('id, full_name, color, portes_aujourd_hui, ventes_aujourd_hui, montant_aujourd_hui, total_portes, total_ventes')
 
   return data ?? []
+}
+
+export async function getProfileForDashboard(userId: string): Promise<any | null> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name, commission_type, commission_value, daily_goal, color')
+    .eq('id', userId)
+    .single()
+  return data ?? null
+}
+
+export async function getFollowUpDoors(): Promise<any[]> {
+  const { data } = await supabase
+    .from('doors')
+    .select('*, profiles(full_name, color)')
+    .eq('follow_up_needed', true)
+    .order('follow_up_date', { ascending: true, nullsFirst: false })
+  return data ?? []
+}
+
+export async function getFollowUpCount(): Promise<number> {
+  const { count } = await supabase
+    .from('doors')
+    .select('*', { count: 'exact', head: true })
+    .eq('follow_up_needed', true)
+  return count ?? 0
+}
+
+export async function getPortesParVendeurParJour(dateDebut: string, dateFin: string): Promise<any[]> {
+  const { data } = await supabase
+    .from('doors')
+    .select('created_at, user_id, profiles(full_name, color)')
+    .gte('created_at', `${dateDebut}T00:00:00`)
+    .lte('created_at', `${dateFin}T23:59:59.999`)
+  return data ?? []
+}
+
+export async function getRevenusParVendeur(dateDebut: string, dateFin: string): Promise<any[]> {
+  const { data } = await supabase
+    .from('doors')
+    .select('created_at, contract_value, user_id, profiles(full_name, color, commission_type, commission_value)')
+    .eq('status', 'vendu')
+    .not('contract_value', 'is', null)
+    .gte('created_at', `${dateDebut}T00:00:00`)
+    .lte('created_at', `${dateFin}T23:59:59.999`)
+  return data ?? []
+}
+
+export async function getVentesParJour7(userId: string): Promise<Array<{ date: string; montant: number; nbVentes: number }>> {
+  const end = new Date()
+  const start = new Date(Date.now() - 6 * 86400000)
+  const startStr = start.toISOString().slice(0, 10)
+  const endStr = end.toISOString().slice(0, 10)
+
+  const { data } = await supabase
+    .from('doors')
+    .select('created_at, contract_value')
+    .eq('user_id', userId)
+    .eq('status', 'vendu')
+    .not('contract_value', 'is', null)
+    .gte('created_at', `${startStr}T00:00:00`)
+    .lte('created_at', `${endStr}T23:59:59.999`)
+
+  if (!data) return []
+
+  const map: Record<string, { montant: number; nbVentes: number }> = {}
+  for (let i = 0; i <= 6; i++) {
+    const d = new Date(Date.now() - (6 - i) * 86400000).toISOString().slice(0, 10)
+    map[d] = { montant: 0, nbVentes: 0 }
+  }
+
+  for (const door of data) {
+    const day = door.created_at.slice(0, 10)
+    if (map[day] !== undefined) {
+      map[day].montant += Number(door.contract_value) || 0
+      map[day].nbVentes++
+    }
+  }
+
+  return Object.entries(map).map(([date, v]) => ({ date, ...v }))
+}
+
+export async function getRevenuesPeriods(): Promise<{
+  today: number
+  trois_jours: number
+  sept_jours: number
+  mois: number
+}> {
+  const now = new Date()
+  const debutMois = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const { data } = await supabase
+    .from('doors')
+    .select('contract_value, created_at')
+    .eq('status', 'vendu')
+    .not('contract_value', 'is', null)
+    .gte('created_at', debutMois.toISOString())
+
+  if (!data) return { today: 0, trois_jours: 0, sept_jours: 0, mois: 0 }
+
+  const todayStr = now.toISOString().slice(0, 10)
+  const il3 = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10)
+  const il7 = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)
+
+  let today = 0, trois_jours = 0, sept_jours = 0, mois = 0
+  for (const d of data) {
+    const day = (d.created_at as string).slice(0, 10)
+    const val = Number(d.contract_value) || 0
+    mois += val
+    if (day >= il7) sept_jours += val
+    if (day >= il3) trois_jours += val
+    if (day === todayStr) today += val
+  }
+
+  return { today, trois_jours, sept_jours, mois }
+}
+
+export async function updateDailyGoal(userId: string, goal: number): Promise<void> {
+  await supabase.from('profiles').update({ daily_goal: goal }).eq('id', userId)
+}
+
+export async function updateAllVendeurDailyGoal(goal: number): Promise<void> {
+  await supabase.from('profiles').update({ daily_goal: goal }).eq('role', 'vendeur')
 }
 
 export async function getPortesParHeure(

@@ -159,6 +159,37 @@ export default function CartePage() {
         </div>
       </div>
 
+      {/* Mod 11: Widget objectif vendeur */}
+      {profile?.role === 'vendeur' && (profile?.daily_goal ?? 0) > 0 && (() => {
+        const portesAujourdhui = doors.filter((d) =>
+          d.user_id === profile.id &&
+          new Date(d.created_at).toDateString() === new Date().toDateString()
+        ).length
+        const progression = Math.min(portesAujourdhui / profile.daily_goal, 1)
+        return (
+          <div style={{
+            position: 'absolute', bottom: 80, left: 16, zIndex: 1000,
+            background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)',
+            borderRadius: 12, padding: '10px 14px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 160,
+          }}>
+            <p style={{ fontSize: 11, color: '#6B7280', margin: '0 0 4px', fontWeight: 500 }}>
+              Objectif du jour
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>
+              {portesAujourdhui} / {profile.daily_goal} portes
+            </p>
+            <div style={{ background: '#E5E7EB', borderRadius: 4, height: 6 }}>
+              <div style={{
+                background: '#69C9CA', borderRadius: 4, height: 6,
+                width: `${Math.round(progression * 100)}%`,
+                transition: 'width 300ms ease',
+              }} />
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Bouton Nouvelle porte → ouvre le modal de recherche d'adresse */}
       <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
         <button

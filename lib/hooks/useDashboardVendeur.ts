@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import * as Q from '@/lib/queries/dashboard'
-import { COMMISSION_RATE } from '@/lib/config'
 
 export interface VendeurStats {
   portesToday: number
@@ -16,6 +15,8 @@ export interface VendeurStats {
   commissions: number
   suivis: any[]
   loading: boolean
+  profile: any | null
+  ventesParJour7: Array<{ date: string; montant: number; nbVentes: number }>
 }
 
 const defaults: VendeurStats = {
@@ -31,11 +32,12 @@ const defaults: VendeurStats = {
   commissions: 0,
   suivis: [],
   loading: true,
+  profile: null,
+  ventesParJour7: [],
 }
 
 export function useDashboardVendeur(userId: string) {
   const [stats, setStats] = useState<VendeurStats>({ ...defaults, loading: true })
-  const [lastFetch, setLastFetch] = useState<number>(0)
 
   const fetchAll = useCallback(async () => {
     if (!userId) return
@@ -44,30 +46,42 @@ export function useDashboardVendeur(userId: string) {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
 
     const [
+      profile,
       portesToday,
       ventesToday,
       revenusToday,
       portesHier,
       ventesHier,
       revenusHier,
-      objectifJour,
       suivis,
+      ventesParJour7,
     ] = await Promise.all([
+      Q.getProfileForDashboard(userId),
       Q.getPortesCount(today, userId),
       Q.getVentesCount(today, userId),
       Q.getRevenusToday(today, userId),
       Q.getPortesCount(yesterday, userId),
       Q.getVentesCount(yesterday, userId),
       Q.getRevenusToday(yesterday, userId),
-      Q.getObjectifJour(userId, today),
       Q.getSuivisVendeur(userId),
+      Q.getVentesParJour7(userId),
     ])
 
     const tauxConversion =
       portesToday > 0 ? Math.round((ventesToday / portesToday) * 1000) / 10 : 0
     const tauxConversionHier =
       portesHier > 0 ? Math.round((ventesHier / portesHier) * 1000) / 10 : 0
-    const commissions = revenusToday * COMMISSION_RATE
+
+    let commissions = 0
+    if (profile) {
+      if (profile.commission_type === 'percent') {
+        commissions = revenusToday * ((profile.commission_value || 0) / 100)
+      } else if (profile.commission_type === 'fixed') {
+        commissions = ventesToday * (profile.commission_value || 0)
+      }
+    }
+
+    const objectifJour = profile?.daily_goal ?? null
 
     setStats({
       portesToday,
@@ -82,15 +96,15 @@ export function useDashboardVendeur(userId: string) {
       commissions,
       suivis,
       loading: false,
+      profile,
+      ventesParJour7,
     })
-    setLastFetch(Date.now())
   }, [userId])
 
   useEffect(() => {
     if (!userId) return
-    if (Date.now() - lastFetch < 5 * 60 * 1000 && lastFetch > 0) return
     fetchAll()
-  }, [userId, fetchAll, lastFetch])
+  }, [userId, fetchAll])
 
   return { stats, refetch: fetchAll }
 }

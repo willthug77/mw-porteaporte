@@ -9,6 +9,10 @@ export interface ManagerStats {
   ventesToday: number
   ventesHier: number
   revenusToday: number
+  followUpCount: number
+  revenus3Jours: number
+  revenus7Jours: number
+  revenusMois: number
   loading: boolean
 }
 
@@ -19,6 +23,10 @@ export function useDashboardManager() {
     ventesToday: 0,
     ventesHier: 0,
     revenusToday: 0,
+    followUpCount: 0,
+    revenus3Jours: 0,
+    revenus7Jours: 0,
+    revenusMois: 0,
     loading: true,
   })
   const [vendeurStats, setVendeurStats] = useState<any[]>([])
@@ -34,23 +42,25 @@ export function useDashboardManager() {
     const [
       portesToday,
       ventesToday,
-      revenusToday,
       portesHier,
       ventesHier,
       vendeurStatsData,
       dernieresPortesData,
       chartDataResult,
       vendeursData,
+      followUpCount,
+      revenuePeriods,
     ] = await Promise.all([
       Q.getPortesCount(today),
       Q.getVentesCount(today),
-      Q.getRevenusToday(today),
       Q.getPortesCount(yesterday),
       Q.getVentesCount(yesterday),
       Q.getVendeurStats(),
       Q.getDernieresPortes(10),
       Q.getPortes7Jours(),
       Q.getAllVendeurs(),
+      Q.getFollowUpCount(),
+      Q.getRevenuesPeriods(),
     ])
 
     setStats({
@@ -58,7 +68,11 @@ export function useDashboardManager() {
       portesHier,
       ventesToday,
       ventesHier,
-      revenusToday,
+      revenusToday: revenuePeriods.today,
+      followUpCount,
+      revenus3Jours: revenuePeriods.trois_jours,
+      revenus7Jours: revenuePeriods.sept_jours,
+      revenusMois: revenuePeriods.mois,
       loading: false,
     })
     setVendeurStats(vendeurStatsData)
