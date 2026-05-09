@@ -1,15 +1,15 @@
 'use client'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { DoorOpen, CheckCircle, Percent, DollarSign, RefreshCw } from 'lucide-react'
+import { DoorOpen, CheckCircle, Percent, DollarSign, RefreshCw, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useDashboardVendeur } from '@/lib/hooks/useDashboardVendeur'
+import * as Q from '@/lib/queries/dashboard'
 import StatCard from '@/components/dashboard/shared/StatCard'
 import ProgressBar from '@/components/dashboard/shared/ProgressBar'
 import SkeletonDashboard from '@/components/dashboard/shared/SkeletonDashboard'
-import PeriodNavigator from '@/components/dashboard/PeriodNavigator'
 import { GOAL_DANGER_PERCENT } from '@/lib/config'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,10 +39,38 @@ function getMotivationalMessage(pct: number): string {
   return 'Objectif atteint! Félicitations! 🎉'
 }
 
+function getWeekRange(offset: number): { dateDebut: string; dateFin: string; label: string } {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + diff + offset * 7)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return {
+    dateDebut: monday.toISOString().slice(0, 10),
+    dateFin: sunday.toISOString().slice(0, 10),
+    label: `Sem. du ${monday.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long' })} au ${sunday.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long' })}`,
+  }
+}
+
 export default function VendeurDashboard() {
   const [userId, setUserId] = useState<string>('')
   const [userLoading, setUserLoading] = useState(true)
-  const [commissionDayOffset, setCommissionDayOffset] = useState(0)
+
+  // Personal goals (Mod 2)
+  const [personalGoalDoors, setPersonalGoalDoors] = useState(0)
+  const [personalGoalRevenue, setPersonalGoalRevenue] = useState(0)
+  const [personalGoalSaving, setPersonalGoalSaving] = useState(false)
+  const [personalGoalSaved, setPersonalGoalSaved] = useState(false)
+
+  // Commission weekly (Mod 3)
+  const [commissionOffset, setCommissionOffset] = useState(0)
+  const [commissionWeekData, setCommissionWeekData] = useState<Array<{ date: string; montant: number; nbVentes: number }>>([])
+  const [commissionWeekLoading, setCommissionWeekLoading] = useState(false)
+
+  // Refresh (Mod 5)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -55,13 +83,57 @@ export default function VendeurDashboard() {
   const { stats, refetch } = useDashboardVendeur(userId)
   const loading = userLoading || stats.loading
 
+  // Init personal goals from profile (Mod 2)
+  useEffect(() => {
+    const profile = stats.profile
+    if (!profile) return
+    if (profile.personal_goal_doors === undefined || profile.personal_goal_doors === null) {
+      console.warn('[VendeurDashboard] personal_goal_doors manquant — migration SQL requise')
+    }
+    setPersonalGoalDoors(profile.personal_goal_doors ?? 0)
+    setPersonalGoalRevenue(Number(profile.personal_goal_revenue) ?? 0)
+  }, [stats.profile])
+
+  // Fetch commission week data (Mod 3)
+  const fetchCommissionWeek = useCallback(async () => {
+    if (!userId) return
+    setCommissionWeekLoading(true)
+    const { dateDebut, dateFin } = getWeekRange(commissionOffset)
+    const data = await Q.getVentesParDateRange(userId, dateDebut, dateFin)
+    setCommissionWeekData(data)
+    setCommissionWeekLoading(false)
+  }, [userId, commissionOffset])
+
+  useEffect(() => { fetchCommissionWeek() }, [fetchCommissionWeek])
+
+  // Refresh all (Mod 5)
+  const loadAll = useCallback(async () => {
+    setIsRefreshing(true)
+    await Promise.all([refetch(), fetchCommissionWeek()])
+    setIsRefreshing(false)
+  }, [refetch, fetchCommissionWeek])
+
+  // Save personal goals (Mod 2)
+  const savePersonalGoals = async () => {
+    if (!userId) return
+    setPersonalGoalSaving(true)
+    await supabase.from('profiles').update({
+      personal_goal_doors: personalGoalDoors,
+      personal_goal_revenue: personalGoalRevenue,
+    }).eq('id', userId)
+    setPersonalGoalSaving(false)
+    setPersonalGoalSaved(true)
+    setTimeout(() => setPersonalGoalSaved(false), 2500)
+  }
+
   if (loading) return <SkeletonDashboard />
 
   const profile = stats.profile
   const firstName = profile?.full_name?.split(' ')[0] || 'vous'
 
-  const objectif = stats.objectifJour ?? 0
-  const pctObjectif = objectif > 0 ? Math.round((stats.portesToday / objectif) * 100) : 0
+  // Objectif manager (Mod 2 — now read-only)
+  const objectifManager = stats.objectifJour ?? 0
+  const pctObjectif = objectifManager > 0 ? Math.round((stats.portesToday / objectifManager) * 100) : 0
   const progressColor =
     pctObjectif >= 100
       ? '#10B981'
@@ -87,20 +159,11 @@ export default function VendeurDashboard() {
     return 0
   }
 
-  // ventesParJour7: 7 items, index 0 = oldest (6 days ago), index 6 = today
-  // offset 0 = today, offset -1 = yesterday, min offset = -6
-  const selectedDayIndex = 6 + commissionDayOffset
-  const selectedDayData = stats.ventesParJour7[selectedDayIndex] ?? { date: '', montant: 0, nbVentes: 0 }
-  const commissionDuJour = commissionForData(selectedDayData)
+  const weekRange = getWeekRange(commissionOffset)
+  const totalWeekCommission = commissionWeekData.reduce((sum, d) => sum + commissionForData(d), 0)
+  const totalWeekVentes = commissionWeekData.reduce((sum, d) => sum + d.nbVentes, 0)
 
-  const selectedDate = selectedDayData.date
-    ? new Date(selectedDayData.date + 'T12:00:00')
-    : new Date()
-  const commissionDayLabel = selectedDate.toLocaleDateString('fr-CA', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  })
-
-  const commissionChartData = stats.ventesParJour7.map((d) => ({
+  const commissionChartData = commissionWeekData.map((d) => ({
     jour: d.date ? new Date(d.date + 'T12:00:00').toLocaleDateString('fr-CA', { weekday: 'short' }) : '',
     commission: commissionForData(d),
   }))
@@ -114,8 +177,14 @@ export default function VendeurDashboard() {
 
   const hasCommission = profile?.commission_type && profile?.commission_value > 0
 
+  // Personal goals progress (Mod 2)
+  const pctPersonalDoors = personalGoalDoors > 0 ? Math.min(Math.round((stats.portesToday / personalGoalDoors) * 100), 100) : 0
+  const pctPersonalRevenue = personalGoalRevenue > 0 ? Math.min(Math.round((stats.revenusToday / personalGoalRevenue) * 100), 100) : 0
+
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: '#F1F2F2', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`@keyframes mw-spin { to { transform: rotate(360deg) } }`}</style>
+
       {/* Header */}
       <div style={{
         background: '#FFFFFF', borderBottom: '1px solid #E5E7EB', padding: '20px 20px 16px',
@@ -128,11 +197,12 @@ export default function VendeurDashboard() {
           <p style={{ color: '#374151', fontSize: 13, margin: '4px 0 0' }}>{todayDate}</p>
         </div>
         <button
-          onClick={refetch}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, color: '#6B7280', display: 'flex', alignItems: 'center' }}
+          onClick={loadAll}
+          disabled={isRefreshing}
+          style={{ background: 'none', border: 'none', cursor: isRefreshing ? 'not-allowed' : 'pointer', padding: 8, color: '#6B7280', display: 'flex', alignItems: 'center', opacity: isRefreshing ? 0.6 : 1 }}
           title="Actualiser"
         >
-          <RefreshCw size={18} />
+          <RefreshCw size={18} style={{ animation: isRefreshing ? 'mw-spin 0.8s linear infinite' : 'none' }} />
         </button>
       </div>
 
@@ -169,26 +239,94 @@ export default function VendeurDashboard() {
           />
         </div>
 
-        {/* Objectif du jour */}
+        {/* Mod 2: Mes objectifs du jour */}
+        <div style={{
+          background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12,
+          padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        }}>
+          <h2 style={{
+            color: '#374151', fontWeight: 600, fontSize: 14, margin: '0 0 14px',
+            textTransform: 'uppercase', letterSpacing: '0.05em',
+          }}>
+            Mes objectifs du jour
+          </h2>
+
+          {/* Portes input + progress */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ color: '#374151', fontSize: 13, fontWeight: 500 }}>Portes</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#6B7280', fontSize: 12 }}>{stats.portesToday} / </span>
+                <input
+                  type="number" min={0} max={500}
+                  value={personalGoalDoors}
+                  onChange={(e) => setPersonalGoalDoors(Number(e.target.value))}
+                  style={{ width: 60, padding: '4px 8px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, fontFamily: 'Inter, sans-serif', outline: 'none', color: '#111827', textAlign: 'center' }}
+                />
+              </div>
+            </div>
+            {personalGoalDoors > 0 && (
+              <ProgressBar value={pctPersonalDoors} color="#69C9CA" height={6} animated />
+            )}
+          </div>
+
+          {/* Revenus input + progress */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ color: '#374151', fontSize: 13, fontWeight: 500 }}>Revenus ($)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#6B7280', fontSize: 12 }}>{stats.revenusToday.toLocaleString('fr-CA')} / </span>
+                <input
+                  type="number" min={0} max={999999}
+                  value={personalGoalRevenue}
+                  onChange={(e) => setPersonalGoalRevenue(Number(e.target.value))}
+                  style={{ width: 80, padding: '4px 8px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 13, fontFamily: 'Inter, sans-serif', outline: 'none', color: '#111827', textAlign: 'center' }}
+                />
+              </div>
+            </div>
+            {personalGoalRevenue > 0 && (
+              <ProgressBar value={pctPersonalRevenue} color="#8B5CF6" height={6} animated />
+            )}
+          </div>
+
+          <button
+            onClick={savePersonalGoals}
+            disabled={personalGoalSaving}
+            style={{
+              width: '100%', background: personalGoalSaved ? '#10B981' : '#F3F4F6',
+              color: personalGoalSaved ? '#FFFFFF' : '#374151',
+              border: 'none', borderRadius: 8, padding: '9px 0',
+              fontSize: 13, fontWeight: 600, cursor: personalGoalSaving ? 'not-allowed' : 'pointer',
+              fontFamily: 'Inter, sans-serif', transition: 'background 200ms ease',
+            }}
+          >
+            {personalGoalSaved ? '✓ Sauvegardé' : personalGoalSaving ? 'Sauvegarde...' : 'Sauvegarder'}
+          </button>
+        </div>
+
+        {/* Mod 2: Objectif manager (read-only) */}
         <div style={{
           background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12,
           padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <h2 style={{
-              color: '#374151', fontWeight: 600, fontSize: 14, margin: 0,
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>
-              Objectif du jour
-            </h2>
-            {objectif > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h2 style={{
+                color: '#374151', fontWeight: 600, fontSize: 14, margin: 0,
+                textTransform: 'uppercase', letterSpacing: '0.05em',
+              }}>
+                Objectif manager
+              </h2>
+              <Lock size={13} color="#9CA3AF" />
+            </div>
+            {objectifManager > 0 && (
               <span style={{ color: progressColor, fontWeight: 700, fontSize: 18 }}>
                 {pctObjectif}%
               </span>
             )}
           </div>
 
-          {objectif === 0 ? (
+          {objectifManager === 0 ? (
             <p style={{ color: '#9CA3AF', fontSize: 13, margin: 0, textAlign: 'center', padding: '8px 0' }}>
               Aucun objectif défini
             </p>
@@ -198,7 +336,7 @@ export default function VendeurDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'flex-end' }}>
                 <div>
                   <p style={{ color: '#111827', fontWeight: 600, fontSize: 15, margin: '0 0 2px' }}>
-                    {stats.portesToday} / {objectif} portes
+                    {stats.portesToday} / {objectifManager} portes
                   </p>
                   <p style={{ color: '#6B7280', fontSize: 12, margin: 0 }}>
                     {getMotivationalMessage(pctObjectif)}
@@ -209,7 +347,7 @@ export default function VendeurDashboard() {
           )}
         </div>
 
-        {/* Commission estimée */}
+        {/* Mod 3: Commission estimée (weekly) */}
         {hasCommission && (
           <div style={{
             background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12,
@@ -222,40 +360,69 @@ export default function VendeurDashboard() {
               Commission estimée
             </h2>
 
-            <PeriodNavigator
-              period="day"
-              offset={commissionDayOffset}
-              onOffsetChange={(v) => setCommissionDayOffset(Math.max(-6, Math.min(0, v)))}
-              label={commissionDayLabel}
-              minOffset={-6}
-            />
-
-            <div style={{ textAlign: 'center', marginBottom: 8 }}>
-              <p style={{ color: '#111827', fontWeight: 800, fontSize: 28, margin: '0 0 4px' }}>
-                {commissionDuJour.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
-              </p>
-              <p style={{ color: '#6B7280', fontSize: 12, margin: 0 }}>
-                Basé sur {selectedDayData.nbVentes} vente{selectedDayData.nbVentes !== 1 ? 's' : ''} — taux {tauxLabel}
-              </p>
+            {/* Week navigation */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
+              <button
+                onClick={() => setCommissionOffset((o) => o - 1)}
+                style={{
+                  background: '#F3F4F6', border: 'none', borderRadius: 8,
+                  padding: '6px 12px', cursor: 'pointer', fontSize: 12,
+                  color: '#374151', fontFamily: 'Inter, sans-serif', fontWeight: 500, flexShrink: 0,
+                }}
+              >
+                ← Sem. précédente
+              </button>
+              <span style={{ color: '#374151', fontSize: 11, fontWeight: 500, textAlign: 'center', flex: 1 }}>
+                {weekRange.label}
+              </span>
+              <button
+                onClick={() => setCommissionOffset((o) => Math.min(0, o + 1))}
+                disabled={commissionOffset === 0}
+                style={{
+                  background: '#F3F4F6', border: 'none', borderRadius: 8,
+                  padding: '6px 12px', cursor: commissionOffset === 0 ? 'not-allowed' : 'pointer',
+                  fontSize: 12, color: '#374151', fontFamily: 'Inter, sans-serif', fontWeight: 500,
+                  opacity: commissionOffset === 0 ? 0.4 : 1, flexShrink: 0,
+                }}
+              >
+                Sem. actuelle →
+              </button>
             </div>
 
-            {commissionChartData.some((d) => d.commission > 0) && (
-              <ResponsiveContainer width="100%" height={100}>
-                <BarChart data={commissionChartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                  <XAxis dataKey="jour" tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-                  <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} />
-                  <Tooltip
-                    formatter={(val) => [`${(Number(val) || 0).toFixed(2)} $`, 'Commission']}
-                    contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #E5E7EB', fontFamily: 'Inter, sans-serif' }}
-                  />
-                  <Bar
-                    dataKey="commission"
-                    fill="#69C9CA"
-                    radius={[3, 3, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+            {commissionWeekLoading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+                <div style={{ width: 22, height: 22, border: '3px solid rgba(105,201,202,0.2)', borderTopColor: '#69C9CA', borderRadius: '50%', animation: 'mw-spin 0.8s linear infinite' }} />
+              </div>
+            ) : (
+              <>
+                <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                  <p style={{ color: '#111827', fontWeight: 800, fontSize: 28, margin: '0 0 4px' }}>
+                    {totalWeekCommission.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $
+                  </p>
+                  <p style={{ color: '#6B7280', fontSize: 12, margin: 0 }}>
+                    Basé sur {totalWeekVentes} vente{totalWeekVentes !== 1 ? 's' : ''} — taux {tauxLabel}
+                  </p>
+                </div>
+
+                {commissionChartData.some((d) => d.commission > 0) && (
+                  <ResponsiveContainer width="100%" height={100}>
+                    <BarChart data={commissionChartData} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                      <XAxis dataKey="jour" tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                      <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} />
+                      <Tooltip
+                        formatter={(val) => [`${(Number(val) || 0).toFixed(2)} $`, 'Commission']}
+                        contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #E5E7EB', fontFamily: 'Inter, sans-serif' }}
+                      />
+                      <Bar
+                        dataKey="commission"
+                        fill="#69C9CA"
+                        radius={[3, 3, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </>
             )}
           </div>
         )}
@@ -315,16 +482,6 @@ export default function VendeurDashboard() {
                 )
               })}
             </div>
-          </div>
-        )}
-
-        {stats.suivis.length === 0 && (
-          <div style={{
-            background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12,
-            padding: '24px 16px', textAlign: 'center', color: '#6B7280', fontSize: 13,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-          }}>
-            Aucun suivi planifié
           </div>
         )}
       </div>

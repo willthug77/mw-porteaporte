@@ -204,10 +204,45 @@ export async function getVendeurStats(): Promise<any[]> {
 export async function getProfileForDashboard(userId: string): Promise<any | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, commission_type, commission_value, daily_goal, color')
+    .select('id, full_name, commission_type, commission_value, daily_goal, color, personal_goal_doors, personal_goal_revenue')
     .eq('id', userId)
     .single()
   return data ?? null
+}
+
+export async function getVentesParDateRange(
+  userId: string,
+  dateDebut: string,
+  dateFin: string
+): Promise<Array<{ date: string; montant: number; nbVentes: number }>> {
+  const { data } = await supabase
+    .from('doors')
+    .select('created_at, contract_value')
+    .eq('user_id', userId)
+    .eq('status', 'vendu')
+    .not('contract_value', 'is', null)
+    .gte('created_at', `${dateDebut}T00:00:00`)
+    .lte('created_at', `${dateFin}T23:59:59.999`)
+
+  if (!data) return []
+
+  const map: Record<string, { montant: number; nbVentes: number }> = {}
+  const cursor = new Date(dateDebut + 'T12:00:00')
+  const end = new Date(dateFin + 'T12:00:00')
+  while (cursor <= end) {
+    map[cursor.toISOString().slice(0, 10)] = { montant: 0, nbVentes: 0 }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  for (const door of data) {
+    const day = (door.created_at as string).slice(0, 10)
+    if (map[day] !== undefined) {
+      map[day].montant += Number(door.contract_value) || 0
+      map[day].nbVentes++
+    }
+  }
+
+  return Object.entries(map).map(([date, v]) => ({ date, ...v }))
 }
 
 export async function getFollowUpDoors(): Promise<any[]> {

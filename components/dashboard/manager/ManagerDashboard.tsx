@@ -192,6 +192,9 @@ export default function ManagerDashboard() {
   const [showObjectifsModal, setShowObjectifsModal] = useState(false)
   const [objectifsInput, setObjectifsInput] = useState<Record<string, number>>({})
   const [globalInput, setGlobalInput] = useState<number>(DEFAULT_DAILY_GOAL)
+  const [vendeursList, setVendeursList] = useState<any[]>([])
+  const [vendeursSaved, setVendeursSaved] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [chart30Data, setChart30Data] = useState<Array<{ date: string; portes: number; ventes: number }>>([])
   const [hourData, setHourData] = useState<Array<{ heure: number; count: number }>>([])
   const [vendeurDoors, setVendeurDoors] = useState<any[]>([])
@@ -231,17 +234,33 @@ export default function ManagerDashboard() {
   const { stats, vendeurStats, dernieresPortes, chartData, vendeurs, loading, refetch } =
     useDashboardManager()
 
-  // ── Objectifs init from profiles.daily_goal (Mod 8)
-  useEffect(() => {
-    if (vendeurs.length > 0) {
-      const initial: Record<string, number> = {}
-      vendeurs.forEach((v) => {
-        initial[v.id] = v.daily_goal ?? DEFAULT_DAILY_GOAL
-      })
-      setObjectifsInput(initial)
-      setObjectifs(initial)
-    }
-  }, [vendeurs])
+  // ── Load vendeurs directly from profiles (Mod 1)
+  const loadVendeurs = useCallback(async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, full_name, color, daily_goal')
+      .eq('role', 'vendeur')
+      .order('full_name')
+    if (!data) { console.warn('[loadVendeurs] aucun vendeur retourné'); return }
+    setVendeursList(data)
+    const initial: Record<string, number> = {}
+    data.forEach((v) => {
+      if (v.daily_goal === undefined || v.daily_goal === null) {
+        console.warn(`[loadVendeurs] daily_goal manquant pour: ${v.full_name}`)
+      }
+      initial[v.id] = v.daily_goal ?? DEFAULT_DAILY_GOAL
+    })
+    setObjectifsInput(initial)
+    setObjectifs(initial)
+  }, [])
+
+  useEffect(() => { loadVendeurs() }, [loadVendeurs])
+
+  const loadAll = useCallback(async () => {
+    setIsRefreshing(true)
+    await Promise.all([refetch(), loadVendeurs()])
+    setIsRefreshing(false)
+  }, [refetch, loadVendeurs])
 
   // ── Analytics tab data
   useEffect(() => {
@@ -298,12 +317,14 @@ export default function ManagerDashboard() {
     )
     setObjectifs({ ...objectifsInput })
     setShowObjectifsModal(false)
+    setVendeursSaved(true)
+    setTimeout(() => setVendeursSaved(false), 2500)
     refetch()
   }
 
   const handleApplyAll = () => {
     const next: Record<string, number> = {}
-    vendeurs.forEach((v) => { next[v.id] = globalInput })
+    vendeursList.forEach((v) => { next[v.id] = globalInput })
     setObjectifsInput(next)
   }
 
@@ -435,8 +456,9 @@ export default function ManagerDashboard() {
             <p style={{ color: '#374151', fontSize: 12, margin: 0 }}>{todayDate}</p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={refetch} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, color: '#6B7280', display: 'flex', alignItems: 'center' }} title="Actualiser">
-              <RefreshCw size={16} />
+            <style>{`@keyframes mw-spin { to { transform: rotate(360deg) } }`}</style>
+            <button onClick={loadAll} disabled={isRefreshing} style={{ background: 'none', border: 'none', cursor: isRefreshing ? 'not-allowed' : 'pointer', padding: 6, color: '#6B7280', display: 'flex', alignItems: 'center', opacity: isRefreshing ? 0.6 : 1 }} title="Actualiser">
+              <RefreshCw size={16} style={{ animation: isRefreshing ? 'mw-spin 0.8s linear infinite' : 'none' }} />
             </button>
             <button
               onClick={() => setShowObjectifsModal(true)}
@@ -482,7 +504,7 @@ export default function ManagerDashboard() {
                 icon={<DollarSign size={18} />}
                 color="#8B5CF6"
               />
-              <StatCard title="Vendeurs" value={vendeurs.length} icon={<Users size={18} />} color="#F59E0B" />
+              <StatCard title="Vendeurs" value={vendeursList.length} icon={<Users size={18} />} color="#F59E0B" />
             </div>
 
             {/* Mod 6: Suivis nécessaires */}
@@ -1098,6 +1120,13 @@ export default function ManagerDashboard() {
         )
       })()}
 
+      {/* Objectifs saved toast */}
+      {vendeursSaved && (
+        <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#10B981', color: '#FFFFFF', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, fontFamily: 'Inter, sans-serif', zIndex: 10002, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
+          ✓ Objectifs sauvegardés
+        </div>
+      )}
+
       {/* Delete Toast */}
       {deleteToast && (
         <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#EF4444', color: '#FFFFFF', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, fontFamily: 'Inter, sans-serif', zIndex: 10001, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
@@ -1200,7 +1229,10 @@ export default function ManagerDashboard() {
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {vendeurs.map((v) => (
+              {vendeursList.length === 0 && (
+                <p style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>Aucun vendeur trouvé</p>
+              )}
+              {vendeursList.map((v) => (
                 <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#F9FAFB', borderRadius: 10, padding: '10px 14px' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: v.color || '#69C9CA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
                     {(v.full_name || '??').slice(0, 2).toUpperCase()}
