@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef } from 'react'
 import { reverseGeocode } from '@/lib/geocoding'
+import { getPinColor } from '@/lib/colors'
 
 interface Door {
   id: string
@@ -264,7 +265,7 @@ export default function MapComponent({ doors, onLongPress, onDoorClick, clearTem
     markersRef.current = []
     doors.forEach(door => {
       const vendeurColor = door.profiles?.color || '#69C9CA'
-      const outerColor = door.status === 'vendu' ? '#10B981' : '#EF4444'
+      const outerColor = getPinColor(door.status)
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
         <path d="M16 0C7.2 0 0 7.2 0 16c0 11 16 24 16 24S32 27 32 16C32 7.2 24.8 0 16 0z"
           fill="${outerColor}" stroke="white" stroke-width="2"/>

@@ -36,6 +36,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import DoorForm from '@/components/DoorForm'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { getPinBadge } from '@/lib/colors'
 
 type Tab = 'global' | 'equipe' | 'analytiques' | 'alertes' | 'portes'
 
@@ -48,14 +49,6 @@ const STATUS_LABELS: Record<string, string> = {
   a_rappeler: 'À rappeler',
   soumission: 'Soumission',
   vendu: 'Vendu',
-}
-const STATUS_BADGE: Record<string, { bg: string; color: string }> = {
-  pas_repondu: { bg: '#F3F4F6', color: '#6B7280' },
-  pas_interesse: { bg: '#FEE2E2', color: '#991B1B' },
-  interesse: { bg: '#FEF3C7', color: '#92400E' },
-  a_rappeler: { bg: '#FEF3C7', color: '#92400E' },
-  soumission: { bg: '#E8F8F8', color: '#0D6E6F' },
-  vendu: { bg: '#D1FAE5', color: '#065F46' },
 }
 
 export default function ManagerDashboard() {
@@ -466,7 +459,7 @@ export default function ManagerDashboard() {
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {dernieresPortes.map((door: any) => {
-                const badge = STATUS_BADGE[door.status] || { bg: '#F3F4F6', color: '#6B7280' }
+                const badge = getPinBadge(door.status)
                 const profile = door.profiles as any
                 return (
                   <div
@@ -941,7 +934,7 @@ export default function ManagerDashboard() {
               <>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {doorsPaginated.map((door: any) => {
-                    const badge = STATUS_BADGE[door.status] || { bg: '#F3F4F6', color: '#6B7280' }
+                    const badge = getPinBadge(door.status)
                     const prof = door.profiles as any
                     return (
                       <div key={door.id} style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
@@ -1218,7 +1211,7 @@ export default function ManagerDashboard() {
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {vendeurDoors.map((door: any) => {
-                const badge = STATUS_BADGE[door.status] || { bg: '#F3F4F6', color: '#6B7280' }
+                const badge = getPinBadge(door.status)
                 return (
                   <div
                     key={door.id}

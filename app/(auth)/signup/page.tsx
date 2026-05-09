@@ -1,19 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-
-const COLORS = [
-  { name: 'Bleu', value: '#3B82F6' },
-  { name: 'Rouge', value: '#EF4444' },
-  { name: 'Orange', value: '#F97316' },
-  { name: 'Noir', value: '#1F2937' },
-  { name: 'Vert', value: '#10B981' },
-  { name: 'Violet', value: '#8B5CF6' },
-  { name: 'Rose', value: '#EC4899' },
-  { name: 'Jaune', value: '#EAB308' },
-]
+import ColorPicker from '@/components/profil/ColorPicker'
+import { VENDOR_COLORS, getUsedColorProfiles } from '@/lib/colors'
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -61,10 +52,15 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<'vendeur' | 'manager'>('vendeur')
-  const [color, setColor] = useState('#3B82F6')
+  const [color, setColor] = useState(VENDOR_COLORS[0])
   const [managerCode, setManagerCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [usedColors, setUsedColors] = useState<{ color: string; name: string }[]>([])
+
+  useEffect(() => {
+    getUsedColorProfiles(supabase).then(setUsedColors)
+  }, [])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -188,29 +184,11 @@ export default function SignupPage() {
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 10 }}>
                 Couleur sur la carte
               </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {COLORS.map(c => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setColor(c.value)}
-                    title={c.name}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: '50%',
-                      background: c.value,
-                      border: color === c.value ? '3px solid #000000' : '3px solid transparent',
-                      outline: color === c.value ? `2px solid ${c.value}` : 'none',
-                      outlineOffset: 2,
-                      cursor: 'pointer',
-                      transform: color === c.value ? 'scale(1.15)' : 'scale(1)',
-                      transition: 'all 150ms ease',
-                      padding: 0,
-                    }}
-                  />
-                ))}
-              </div>
+              <ColorPicker
+                selectedColor={color}
+                usedColors={usedColors}
+                onChange={setColor}
+              />
             </div>
 
             {error && (

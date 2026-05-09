@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { X, Phone, MapPin, Search, Plus, User, ChevronLeft, ChevronRight, FileText } from 'lucide-react'
+import { getPinBadge } from '@/lib/colors'
 import DoorForm from '@/components/DoorForm'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -77,7 +78,7 @@ const btnPrimary: React.CSSProperties = {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const isVendu = status === 'vendu'
+  const badge = getPinBadge(status)
   return (
     <span style={{
       display: 'inline-block',
@@ -85,10 +86,10 @@ function StatusBadge({ status }: { status: string }) {
       borderRadius: 999,
       fontSize: 11,
       fontWeight: 600,
-      background: isVendu ? '#D1FAE5' : '#F3F4F6',
-      color: isVendu ? '#065F46' : '#6B7280',
+      background: badge.bg,
+      color: badge.color,
     }}>
-      {isVendu ? '✓ Vendu' : 'Contact'}
+      {status === 'vendu' ? '✓ Vendu' : 'Contact'}
     </span>
   )
 }

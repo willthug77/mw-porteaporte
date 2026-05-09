@@ -13,7 +13,6 @@ export default function SettingsSection({ title, description, children }: Props)
       borderRadius: 12,
       border: '1px solid #E5E7EB',
       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-      overflow: 'hidden',
     }}>
       <div style={{ padding: '14px 16px', borderBottom: '1px solid #F3F4F6' }}>
         <p style={{ color: '#111827', fontWeight: 700, fontSize: 14, margin: 0 }}>{title}</p>

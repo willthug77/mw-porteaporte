@@ -1,11 +1,8 @@
 'use client'
 import { useState } from 'react'
+import { VENDOR_COLORS } from '@/lib/colors'
 
-export const PALETTE = [
-  '#69C9CA', '#0D6E6F', '#10B981', '#F59E0B',
-  '#EF4444', '#8B5CF6', '#3B82F6', '#EC4899',
-  '#F97316', '#14B8A6', '#6366F1', '#84CC16',
-]
+export const PALETTE = VENDOR_COLORS
 
 interface UsedColor { color: string; name: string }
 
