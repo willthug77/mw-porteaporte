@@ -52,7 +52,7 @@ const inputSm: React.CSSProperties = {
   border: '1px solid #E5E7EB',
   borderRadius: 8,
   padding: '8px 10px',
-  fontSize: 13,
+  fontSize: 16,
   color: '#1F2937',
   fontFamily: 'Inter, sans-serif',
   outline: 'none',
@@ -103,7 +103,7 @@ function ServiceRow({ item, onChange, onDelete }: {
       />
       <input
         value={item.value} onChange={e => onChange({ ...item, value: e.target.value })}
-        placeholder="Clé" style={{ ...inputSm, flex: 1, fontFamily: 'monospace', fontSize: 12 }} {...fx}
+        placeholder="Clé" style={{ ...inputSm, flex: 1, fontFamily: 'monospace', fontSize: 16 }} {...fx}
       />
       <button onClick={onDelete} style={iconBtn()}><X size={14} /></button>
     </div>
@@ -124,7 +124,7 @@ function StatusRow({ item, onChange, onDelete }: {
       />
       <input
         value={item.value} onChange={e => onChange({ ...item, value: e.target.value })}
-        placeholder="Clé" style={{ ...inputSm, flex: 1, fontFamily: 'monospace', fontSize: 12 }} {...fx}
+        placeholder="Clé" style={{ ...inputSm, flex: 1, fontFamily: 'monospace', fontSize: 16 }} {...fx}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
         <input
@@ -153,7 +153,7 @@ function FollowUpRow({ item, onChange, onDelete }: {
       />
       <input
         value={item.value} onChange={e => onChange({ ...item, value: e.target.value })}
-        placeholder="Clé" style={{ ...inputSm, flex: 1, fontFamily: 'monospace', fontSize: 12 }} {...fx}
+        placeholder="Clé" style={{ ...inputSm, flex: 1, fontFamily: 'monospace', fontSize: 16 }} {...fx}
       />
       <button onClick={onDelete} style={iconBtn()}><X size={14} /></button>
     </div>

@@ -24,7 +24,7 @@ const LABEL_STYLE: React.CSSProperties = {
 }
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%', border: '1px solid #E5E7EB', borderRadius: 8,
-  padding: '10px 12px', fontSize: 14, color: '#1F2937',
+  padding: '10px 12px', fontSize: 16, color: '#1F2937',
   fontFamily: 'Inter, sans-serif', outline: 'none', background: '#FFFFFF',
   boxSizing: 'border-box',
 }

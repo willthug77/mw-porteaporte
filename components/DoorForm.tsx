@@ -73,7 +73,7 @@ const fieldInput: React.CSSProperties = {
   border: '1px solid #E5E7EB',
   borderRadius: 8,
   padding: '10px 14px',
-  fontSize: 15,
+  fontSize: 16,
   color: '#1F2937',
   outline: 'none',
   fontFamily: 'Inter, sans-serif',
@@ -285,7 +285,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                     placeholder={coords.address ? '' : "Récupération de l'adresse..."}
                     style={{
                       ...fieldInput,
-                      fontSize: 13,
+                      fontSize: 16,
                       padding: '8px 12px',
                       borderColor: addressError ? '#EF4444' : '#E5E7EB',
                     }}

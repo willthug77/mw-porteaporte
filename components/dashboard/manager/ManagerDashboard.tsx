@@ -236,17 +236,25 @@ export default function ManagerDashboard() {
 
   // ── Load vendeurs directly from profiles (Mod 1)
   const loadVendeurs = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, color, daily_goal')
       .eq('role', 'vendeur')
       .order('full_name')
-    if (!data) { console.warn('[loadVendeurs] aucun vendeur retourné'); return }
-    setVendeursList(data)
+    if (error) {
+      console.error('fetchVendeurs error:', error)
+      console.warn('VÉRIFIER RLS: Exécuter dans Supabase SQL Editor si les vendeurs ne s\'affichent pas:\nCREATE POLICY "auth_read_profiles" ON profiles FOR SELECT TO authenticated USING (true);\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS daily_goal INTEGER DEFAULT 0;\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS personal_goal_doors INTEGER DEFAULT 0;\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS personal_goal_revenue NUMERIC DEFAULT 0;')
+      return
+    }
+    const liste = data || []
+    if (liste.length === 0) {
+      console.warn('[loadVendeurs] aucun vendeur retourné — vérifier que les comptes ont le rôle "vendeur" dans Supabase profiles')
+    }
+    setVendeursList(liste)
     const initial: Record<string, number> = {}
-    data.forEach((v) => {
+    liste.forEach((v) => {
       if (v.daily_goal === undefined || v.daily_goal === null) {
-        console.warn(`[loadVendeurs] daily_goal manquant pour: ${v.full_name}`)
+        console.warn(`[loadVendeurs] daily_goal manquant pour: ${v.full_name} — exécuter la migration SQL dans Supabase`)
       }
       initial[v.id] = v.daily_goal ?? DEFAULT_DAILY_GOAL
     })

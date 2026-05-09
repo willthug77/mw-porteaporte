@@ -71,12 +71,21 @@ export default function SignupPage() {
       setLoading(false)
       return
     }
-    const { error } = await supabase.auth.signUp({
+    const { data: authData, error } = await supabase.auth.signUp({
       email, password,
       options: { data: { full_name: fullName, role, color } }
     })
-    if (error) { setError(error.message); setLoading(false) }
-    else router.push('/carte')
+    if (error) { setError(error.message); setLoading(false); return }
+    // Fallback upsert — garantit la création du profil même si le trigger DB est absent
+    if (authData?.user) {
+      await supabase.from('profiles').upsert({
+        id: authData.user.id,
+        full_name: fullName,
+        role,
+        color,
+      }, { onConflict: 'id' })
+    }
+    router.push('/carte')
   }
 
   return (

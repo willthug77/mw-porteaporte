@@ -55,7 +55,7 @@ const filterInput: React.CSSProperties = {
   border: '1px solid #E5E7EB',
   borderRadius: 8,
   padding: '8px 12px',
-  fontSize: 13,
+  fontSize: 16,
   fontFamily: 'Inter, sans-serif',
   outline: 'none',
   background: '#FFFFFF',
@@ -201,7 +201,7 @@ function EditClientModal({ door, onClose, onSaved }: { door: ClientDoor; onClose
 
   const fi: React.CSSProperties = {
     width: '100%', border: '1px solid #E5E7EB', borderRadius: 8,
-    padding: '10px 14px', fontSize: 14, color: '#1F2937',
+    padding: '10px 14px', fontSize: 16, color: '#1F2937',
     fontFamily: 'Inter, sans-serif', outline: 'none', background: '#FFFFFF', boxSizing: 'border-box',
   }
   const fx = {
@@ -308,7 +308,7 @@ function AddClientModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
 
   const fi: React.CSSProperties = {
     width: '100%', border: '1px solid #E5E7EB', borderRadius: 8,
-    padding: '10px 14px', fontSize: 14, color: '#1F2937',
+    padding: '10px 14px', fontSize: 16, color: '#1F2937',
     fontFamily: 'Inter, sans-serif', outline: 'none', background: '#FFFFFF', boxSizing: 'border-box',
   }
   const fx = {
