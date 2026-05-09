@@ -234,41 +234,31 @@ export default function ManagerDashboard() {
   const { stats, vendeurStats, dernieresPortes, chartData, vendeurs, loading, refetch } =
     useDashboardManager()
 
-  // ── Load vendeurs directly from profiles (Mod 1)
-  const loadVendeurs = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, color, daily_goal')
-      .eq('role', 'vendeur')
-      .order('full_name')
-    if (error) {
-      console.error('fetchVendeurs error:', error)
-      console.warn('VÉRIFIER RLS: Exécuter dans Supabase SQL Editor si les vendeurs ne s\'affichent pas:\nCREATE POLICY "auth_read_profiles" ON profiles FOR SELECT TO authenticated USING (true);\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS daily_goal INTEGER DEFAULT 0;\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS personal_goal_doors INTEGER DEFAULT 0;\nALTER TABLE profiles ADD COLUMN IF NOT EXISTS personal_goal_revenue NUMERIC DEFAULT 0;')
-      return
-    }
-    const liste = data || []
-    if (liste.length === 0) {
-      console.warn('[loadVendeurs] aucun vendeur retourné — vérifier que les comptes ont le rôle "vendeur" dans Supabase profiles')
-    }
-    setVendeursList(liste)
-    const initial: Record<string, number> = {}
-    liste.forEach((v) => {
-      if (v.daily_goal === undefined || v.daily_goal === null) {
-        console.warn(`[loadVendeurs] daily_goal manquant pour: ${v.full_name} — exécuter la migration SQL dans Supabase`)
-      }
-      initial[v.id] = v.daily_goal ?? DEFAULT_DAILY_GOAL
+  // ── Sync vendeursList from hook data (already fetched by getAllVendeurs)
+  useEffect(() => {
+    if (vendeurs.length === 0) return
+    setVendeursList(vendeurs)
+    setObjectifsInput((prev) => {
+      const next: Record<string, number> = {}
+      vendeurs.forEach((v) => {
+        next[v.id] = prev[v.id] !== undefined ? prev[v.id] : (v.daily_goal ?? DEFAULT_DAILY_GOAL)
+      })
+      return next
     })
-    setObjectifsInput(initial)
-    setObjectifs(initial)
-  }, [])
-
-  useEffect(() => { loadVendeurs() }, [loadVendeurs])
+    setObjectifs((prev) => {
+      const next: Record<string, number> = { ...prev }
+      vendeurs.forEach((v) => {
+        if (next[v.id] === undefined) next[v.id] = v.daily_goal ?? DEFAULT_DAILY_GOAL
+      })
+      return next
+    })
+  }, [vendeurs])
 
   const loadAll = useCallback(async () => {
     setIsRefreshing(true)
-    await Promise.all([refetch(), loadVendeurs()])
+    await refetch()
     setIsRefreshing(false)
-  }, [refetch, loadVendeurs])
+  }, [refetch])
 
   // ── Analytics tab data
   useEffect(() => {
