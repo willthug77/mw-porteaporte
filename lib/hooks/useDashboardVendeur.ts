@@ -71,6 +71,8 @@ export function useDashboardVendeur(userId: string) {
       Q.getObjectifsVendeurJour(userId, today),
     ])
 
+    console.log('[DEBUG] userId:', userId, '| objectif DB:', objectifs)
+
     const tauxConversion =
       portesToday > 0 ? Math.round((ventesToday / portesToday) * 1000) / 10 : 0
     const tauxConversionHier =
