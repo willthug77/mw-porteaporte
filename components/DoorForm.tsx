@@ -1,10 +1,8 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import AddressDisplay from '@/components/AddressDisplay'
-
-// TODO: ajouter permissions par rôle (vendeur ne peut modifier que ses propres portes)
 
 const SERVICES = [
   { value: 'vitres_ext', label: 'Lavage vitres ext.' },
@@ -36,6 +34,18 @@ const STATUSES = [
   { value: 'vendu',         label: '✓ Vendu',        bg: '#D1FAE5', color: '#065F46', activeBg: '#10B981', activeColor: '#FFFFFF' },
 ]
 
+const OBJECTION_IA_LABELS: Record<string, string> = {
+  prix: 'Prix',
+  timing: 'Timing',
+  conjoint_absent: 'Conjoint absent',
+  confiance: 'Confiance',
+  besoin_faible: 'Besoin faible',
+  deja_servi: 'Déjà servi',
+  pas_interesse: 'Pas intéressé',
+  indecis: 'Indécis',
+  autre: 'Autre',
+}
+
 export interface Door {
   id: string
   user_id: string
@@ -54,6 +64,14 @@ export interface Door {
   phone?: string | null
   created_at?: string
   profiles?: { full_name: string; color: string }
+  transcription?: string | null
+  transcription_corrigee?: string | null
+  feedback_ia?: string | null
+  objection_detectee?: string | null
+  suivi_necessaire?: boolean
+  note_suivi?: string | null
+  date_rappel?: string | null
+  analyse_ia_statut?: string | null
 }
 
 type Step = 'repondu' | 'close' | 'vente' | 'objection'
@@ -134,6 +152,7 @@ function isPhoneValid(value: string): boolean {
 export default function DoorForm({ coords, onSave, onClose, mode = 'create', initialData, onAddressSelect }: Props) {
   const isEdit = mode === 'edit'
 
+  // Existing state
   const [step, setStep] = useState<Step>('repondu')
   const [editStatus, setEditStatus] = useState(initialData?.status || 'pas_repondu')
   const [service, setService] = useState(initialData?.service_type || '')
@@ -148,14 +167,83 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [venteSubmitAttempted, setVenteSubmitAttempted] = useState(false)
-
-  // Editable address — only shown (and required) in create mode
   const [address, setAddress] = useState(coords.address || '')
   const [addressError, setAddressError] = useState('')
   const [addressApproximate, setAddressApproximate] = useState(coords.approximate ?? false)
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const debounceRef = useRef<any>(null)
+
+  // AI coaching state
+  const [transcriptionRaw, setTranscriptionRaw] = useState(initialData?.transcription || '')
+  const [transcriptionText, setTranscriptionText] = useState(
+    initialData?.transcription_corrigee || initialData?.transcription || ''
+  )
+  const [feedbackIA, setFeedbackIA] = useState(initialData?.feedback_ia || '')
+  const [objectionDetectee, setObjectionDetectee] = useState(initialData?.objection_detectee || '')
+  const [suiviCoach, setSuiviCoach] = useState(initialData?.suivi_necessaire ?? false)
+  const [noteCoach, setNoteCoach] = useState(initialData?.note_suivi || '')
+  const [dateRappel, setDateRappel] = useState(initialData?.date_rappel || '')
+  const [isListening, setIsListening] = useState(false)
+  const [iaLoading, setIaLoading] = useState(false)
+  const [speechAvailable, setSpeechAvailable] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    setSpeechAvailable(!!SR)
+  }, [])
+
+  const startListening = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR || isListening) return
+    let currentTranscript = ''
+    const recognition = new SR()
+    recognition.lang = 'fr-CA'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.onresult = (event: any) => {
+      currentTranscript = Array.from(event.results as any[]).map((r: any) => r[0].transcript).join('')
+      setTranscriptionText(currentTranscript)
+    }
+    recognition.onend = () => {
+      setIsListening(false)
+      if (currentTranscript) setTranscriptionRaw(currentTranscript)
+    }
+    recognition.onerror = () => setIsListening(false)
+    recognition.start()
+    setIsListening(true)
+    recognitionRef.current = recognition
+  }
+
+  const stopListening = () => {
+    recognitionRef.current?.stop()
+    setIsListening(false)
+  }
+
+  const analyzeWithIA = async () => {
+    const text = transcriptionText.trim()
+    if (!text || iaLoading) return
+    setIaLoading(true)
+    try {
+      const res = await fetch('/api/coach-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcription: text }),
+      })
+      const data = await res.json()
+      if (res.ok && data.feedback) {
+        setFeedbackIA(data.feedback)
+        if (data.objection_detectee) setObjectionDetectee(data.objection_detectee)
+      } else {
+        setFeedbackIA('Feedback IA non disponible — tu peux enregistrer sans analyse.')
+      }
+    } catch {
+      setFeedbackIA('Feedback IA non disponible — tu peux enregistrer sans analyse.')
+    } finally {
+      setIaLoading(false)
+    }
+  }
 
   const handleAddressChange = (val: string) => {
     setAddress(val)
@@ -209,15 +297,21 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
       follow_up_date: followUpDate || null,
       client_name: clientName || null,
       phone: phone || null,
+      transcription: transcriptionRaw || null,
+      transcription_corrigee: (transcriptionText && transcriptionText !== transcriptionRaw) ? transcriptionText : null,
+      feedback_ia: feedbackIA || null,
+      objection_detectee: objectionDetectee || null,
+      suivi_necessaire: suiviCoach,
+      note_suivi: (suiviCoach && noteCoach) ? noteCoach : null,
+      date_rappel: (suiviCoach && dateRappel) ? dateRappel : null,
+      analyse_ia_statut: feedbackIA ? 'analyse' : (transcriptionRaw ? 'non_analyse' : 'sans_transcription'),
     }
-    // Only include address in the create payload (edit keeps the address from DB unless explicitly changed)
     if (!isEdit) {
       base.address = address.trim() || null
     }
     return { ...base, ...overrideData }
   }
 
-  // Create mode: validate address then delegate to parent
   const save = async (overrideData?: any) => {
     if (!address.trim()) {
       setAddressError("L'adresse est obligatoire.")
@@ -229,7 +323,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
     setSaving(false)
   }
 
-  // Edit mode: update directly in Supabase, then notify parent to refetch
   const saveEdit = async () => {
     if (!initialData) return
     if (!isEditClientValid) {
@@ -248,16 +341,167 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
       return
     }
     setSaving(false)
-    onSave({}) // trigger refetch in parent
+    onSave({})
     onClose()
   }
 
   const title = isEdit ? 'Modifier la porte' : 'Nouvelle porte'
 
+  // Shared vocal coach section (used in both create 'objection' step and edit mode)
+  const showVocalSection = isEdit
+    ? (editStatus !== 'pas_repondu' && editStatus !== 'vendu')
+    : true // always shown in objection step (only reached when répondu=OUI, vendu=NON)
+
+  const vocalSection = (
+    <div style={{ border: '1px solid #D1D5DB', borderRadius: 12, padding: 16, background: '#F9FAFB' }}>
+      <p style={{ color: '#374151', fontWeight: 700, fontSize: 14, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        🎙️ Résumé vocal de la discussion
+      </p>
+
+      {/* Mic button */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+        {speechAvailable ? (
+          <button
+            type="button"
+            onClick={isListening ? stopListening : startListening}
+            style={{
+              width: 80, height: 80, borderRadius: '50%',
+              background: isListening ? '#EF4444' : '#69C9CA',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 4, boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+              animation: isListening ? 'mw-pulse 1s ease-in-out infinite' : 'none',
+              transition: 'background 200ms ease',
+            }}
+          >
+            <span style={{ fontSize: 28 }}>🎤</span>
+            <span style={{ fontSize: 10, color: 'white', fontWeight: 700, letterSpacing: '0.02em' }}>
+              {isListening ? 'STOP' : 'MICRO'}
+            </span>
+          </button>
+        ) : (
+          <div style={{ background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 10, padding: '10px 14px', width: '100%' }}>
+            <p style={{ color: '#6B7280', fontSize: 13, margin: 0, textAlign: 'center' }}>
+              Dictée vocale non disponible — écris ce qui s&apos;est passé
+            </p>
+          </div>
+        )}
+      </div>
+
+      {isListening && (
+        <p style={{ color: '#EF4444', fontSize: 13, textAlign: 'center', margin: '0 0 10px', fontWeight: 600, letterSpacing: '0.03em' }}>
+          ● Transcription en cours...
+        </p>
+      )}
+
+      {/* Transcript textarea */}
+      <FocusTextarea
+        placeholder="La transcription apparaîtra ici après avoir appuyé sur le micro, ou écris directement ce qui s'est passé..."
+        value={transcriptionText}
+        onChange={e => setTranscriptionText(e.target.value)}
+        rows={4}
+      />
+
+      {/* Suivi OUI/NON */}
+      <div style={{ marginTop: 14 }}>
+        <p style={{ color: '#374151', fontSize: 13, fontWeight: 600, margin: '0 0 8px' }}>Suivi nécessaire ?</p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {[
+            { val: true, label: 'Oui' },
+            { val: false, label: 'Non' },
+          ].map(({ val, label }) => (
+            <button
+              key={String(val)}
+              type="button"
+              onClick={() => setSuiviCoach(val)}
+              style={{
+                flex: 1, padding: '10px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                border: `1.5px solid ${suiviCoach === val ? '#69C9CA' : '#E5E7EB'}`,
+                background: suiviCoach === val ? '#E8F8F8' : '#FFFFFF',
+                color: suiviCoach === val ? '#0D6E6F' : '#374151',
+                cursor: 'pointer', fontFamily: 'Inter, sans-serif', transition: 'all 150ms ease',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {suiviCoach && (
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <FocusInput
+            placeholder="Note de suivi (optionnel)"
+            value={noteCoach}
+            onChange={e => setNoteCoach(e.target.value)}
+          />
+          <input
+            type="date"
+            value={dateRappel}
+            onChange={e => setDateRappel(e.target.value)}
+            style={fieldInput}
+            onFocus={e => { e.target.style.borderColor = '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
+            onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
+          />
+        </div>
+      )}
+
+      {/* Analyser button */}
+      <button
+        type="button"
+        onClick={analyzeWithIA}
+        disabled={!transcriptionText.trim() || iaLoading}
+        style={{
+          width: '100%', marginTop: 14, padding: '12px',
+          background: !transcriptionText.trim() || iaLoading ? '#E5E7EB' : '#111827',
+          color: !transcriptionText.trim() || iaLoading ? '#9CA3AF' : '#FFFFFF',
+          border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600,
+          cursor: !transcriptionText.trim() || iaLoading ? 'not-allowed' : 'pointer',
+          fontFamily: 'Inter, sans-serif', transition: 'background 150ms',
+        }}
+      >
+        {iaLoading ? 'Analyse en cours...' : '✦ Analyser avec le coach IA'}
+      </button>
+
+      {/* IA spinner */}
+      {iaLoading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+          <div style={{ width: 22, height: 22, border: '3px solid rgba(105,201,202,0.2)', borderTopColor: '#69C9CA', borderRadius: '50%', animation: 'mw-spin 0.8s linear infinite' }} />
+        </div>
+      )}
+
+      {/* IA feedback */}
+      {feedbackIA && !iaLoading && (
+        <div style={{ marginTop: 12, background: '#E8F8F8', border: '1px solid #69C9CA', borderRadius: 10, padding: 14 }}>
+          <p style={{ color: '#0D6E6F', fontSize: 11, fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Feedback Coach IA
+          </p>
+          <p style={{ color: '#111827', fontSize: 14, lineHeight: 1.65, margin: 0, whiteSpace: 'pre-line' }}>
+            {feedbackIA}
+          </p>
+          {objectionDetectee && (
+            <span style={{
+              display: 'inline-block', marginTop: 10,
+              background: '#FEF3C7', color: '#92400E',
+              padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+            }}>
+              {OBJECTION_IA_LABELS[objectionDetectee] || objectionDetectee}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 9999 }}>
       <style>{`
         @keyframes mw-client-in { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes mw-spin { to { transform: rotate(360deg) } }
+        @keyframes mw-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+          50% { box-shadow: 0 0 0 12px rgba(239,68,68,0); }
+        }
       `}</style>
       <div style={{ background: '#FFFFFF', width: '100%', borderRadius: '20px 20px 0 0', maxHeight: '92vh', overflowY: 'auto', fontFamily: 'Inter, sans-serif' }}>
 
@@ -271,7 +515,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>{title}</p>
 
-            {/* Create mode: editable address field with autocomplete */}
             {!isEdit && (
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#374151', marginBottom: 4 }}>
@@ -328,7 +571,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
               </div>
             )}
 
-            {/* Edit mode: read-only address display */}
             {isEdit && (
               <div style={{ marginTop: 2 }}>
                 <AddressDisplay lat={coords.lat} lng={coords.lng} />
@@ -346,7 +588,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
           {isEdit && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-              {/* Statut */}
               <Field label="Statut">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {STATUSES.map(s => {
@@ -367,7 +608,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 </div>
               </Field>
 
-              {/* Infos client — optionnelles ou obligatoires selon statut vendu */}
               <div style={{
                 borderLeft: isEditVendu ? '3px solid #69C9CA' : '3px solid transparent',
                 background: isEditVendu ? '#E8F8F8' : 'transparent',
@@ -376,11 +616,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 transition: 'background 200ms ease, padding 200ms ease, border-color 200ms ease',
               }}>
                 {isEditVendu && (
-                  <p style={{
-                    color: '#0D6E6F', fontWeight: 700, fontSize: 14,
-                    margin: '0 0 12px',
-                    animation: 'mw-client-in 200ms ease both',
-                  }}>
+                  <p style={{ color: '#0D6E6F', fontWeight: 700, fontSize: 14, margin: '0 0 12px', animation: 'mw-client-in 200ms ease both' }}>
                     Informations client requises
                   </p>
                 )}
@@ -394,7 +630,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 </div>
               </div>
 
-              {/* Service */}
               <Field label="Service">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {SERVICES.map(s => (
@@ -412,7 +647,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 </div>
               </Field>
 
-              {/* Montant + Date */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Montant ($)">
                   <FocusInput type="number" placeholder="250" value={amount} onChange={e => setAmount(e.target.value)} />
@@ -426,7 +660,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 </Field>
               </div>
 
-              {/* Objection */}
               <Field label="Objection">
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {OBJECTIONS.map(o => (
@@ -443,12 +676,13 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 </div>
               </Field>
 
-              {/* Notes */}
+              {/* Coach IA section in edit mode — only when répondu=OUI & vendu=NON */}
+              {showVocalSection && vocalSection}
+
               <Field label="Notes">
                 <FocusTextarea placeholder="Particularités, remarques..." value={notes} onChange={e => setNotes(e.target.value)} />
               </Field>
 
-              {/* Suivi */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <button onClick={() => setFollowUp(!followUp)} style={{
@@ -460,8 +694,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                     <div style={{
                       position: 'absolute', top: 3, left: followUp ? 21 : 3,
                       width: 20, height: 20, borderRadius: '50%', background: 'white',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                      transition: 'left 200ms ease',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 200ms ease',
                     }} />
                   </button>
                   <span style={{ color: '#374151', fontSize: 14, fontWeight: 500 }}>Suivi nécessaire</span>
@@ -475,14 +708,12 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                 )}
               </div>
 
-              {/* Erreur */}
               {error && (
                 <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', color: '#991B1B', fontSize: 14 }}>
                   {error}
                 </div>
               )}
 
-              {/* Bouton mise à jour */}
               <button onClick={saveEdit} disabled={saving || !isEditClientValid} style={{
                 background: saving || !isEditClientValid ? '#E5E7EB' : '#69C9CA',
                 color: saving || !isEditClientValid ? '#9CA3AF' : '#000000',
@@ -505,7 +736,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
             <>
               {step === 'repondu' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>Quelqu'un a répondu ?</p>
+                  <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>Quelqu&apos;un a répondu ?</p>
                   <button onClick={() => save({ status: 'pas_repondu' })} disabled={saving}
                     style={{ width: '100%', background: '#F1F2F2', color: '#1F2937', fontWeight: 500, padding: '16px 20px', borderRadius: 12, fontSize: 15, border: '1.5px solid #E5E7EB', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 56, fontFamily: 'Inter, sans-serif' }}>
                     <span>Non — Personne</span>
@@ -513,7 +744,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                   </button>
                   <button onClick={() => { if (!address.trim()) { setAddressError("L'adresse est obligatoire."); return } setStep('close') }}
                     style={{ width: '100%', background: '#69C9CA', color: '#000000', fontWeight: 600, padding: '16px 20px', borderRadius: 12, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 56, fontFamily: 'Inter, sans-serif' }}>
-                    <span>Oui — Quelqu'un a répondu</span>
+                    <span>Oui — Quelqu&apos;un a répondu</span>
                     <span>›</span>
                   </button>
                 </div>
@@ -521,7 +752,7 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
 
               {step === 'close' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>C'est closé ?</p>
+                  <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>C&apos;est closé ?</p>
                   <button onClick={() => setStep('vente')}
                     style={{ width: '100%', background: '#10B981', color: '#FFFFFF', fontWeight: 600, padding: '16px 20px', borderRadius: 12, fontSize: 15, border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 56, fontFamily: 'Inter, sans-serif' }}>
                     <span>Oui — Vendu !</span><span>›</span>
@@ -541,8 +772,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981' }} />
                       <p style={{ color: '#10B981', fontWeight: 700, fontSize: 18, margin: 0 }}>Vente !</p>
                     </div>
-
-                    {/* Section client requise */}
                     <div style={{ borderLeft: '3px solid #69C9CA', background: '#E8F8F8', padding: 16, borderRadius: 8 }}>
                       <p style={{ color: '#0D6E6F', fontWeight: 700, fontSize: 14, margin: '0 0 12px' }}>
                         Informations client requises
@@ -556,7 +785,6 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                         </Field>
                       </div>
                     </div>
-
                     <Field label="Service vendu">
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         {SERVICES.map(s => (
@@ -583,13 +811,11 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
                     <Field label="Notes">
                       <FocusTextarea placeholder="Particularités..." value={notes} onChange={e => setNotes(e.target.value)} />
                     </Field>
-
                     {venteSubmitAttempted && !venteClientValid && (
                       <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', color: '#991B1B', fontSize: 14 }}>
                         Veuillez entrer le nom et le téléphone du client pour enregistrer une vente.
                       </div>
                     )}
-
                     <button
                       onClick={() => {
                         setVenteSubmitAttempted(true)
@@ -612,46 +838,40 @@ export default function DoorForm({ coords, onSave, onClose, mode = 'create', ini
               })()}
 
               {step === 'objection' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: '0 0 6px' }}>Raison / Objection</p>
-                  {OBJECTIONS.map(o => (
-                    <button key={o.value} onClick={() => setObjection(o.value)} style={{
-                      padding: '13px 16px', borderRadius: 8, fontSize: 14, fontWeight: 500,
-                      border: `1.5px solid ${objection === o.value ? '#69C9CA' : '#E5E7EB'}`,
-                      background: objection === o.value ? '#E8F8F8' : '#FFFFFF',
-                      color: objection === o.value ? '#0D6E6F' : '#374151',
-                      cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'Inter, sans-serif', transition: 'all 150ms ease',
-                    }}>{o.label}</button>
-                  ))}
-                  <FocusTextarea placeholder="Notes (optionnel)" value={notes} onChange={e => setNotes(e.target.value)} />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0' }}>
-                    <button onClick={() => setFollowUp(!followUp)} style={{
-                      width: 44, height: 26, borderRadius: 13,
-                      background: followUp ? '#69C9CA' : '#E5E7EB',
-                      border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0,
-                      transition: 'background 200ms ease',
-                    }}>
-                      <div style={{ position: 'absolute', top: 3, left: followUp ? 21 : 3, width: 20, height: 20, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 200ms ease' }} />
-                    </button>
-                    <span style={{ color: '#374151', fontSize: 14, fontWeight: 500 }}>Suivi nécessaire</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <p style={{ color: '#111827', fontWeight: 600, fontSize: 17, margin: 0 }}>Raison / Objection</p>
+
+                  {/* Objection buttons */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {OBJECTIONS.map(o => (
+                      <button key={o.value} onClick={() => setObjection(objection === o.value ? '' : o.value)} style={{
+                        padding: '8px 14px', borderRadius: 8, fontSize: 14, fontWeight: 500,
+                        border: `1.5px solid ${objection === o.value ? '#69C9CA' : '#E5E7EB'}`,
+                        background: objection === o.value ? '#E8F8F8' : '#FFFFFF',
+                        color: objection === o.value ? '#0D6E6F' : '#374151',
+                        cursor: 'pointer', fontFamily: 'Inter, sans-serif', transition: 'all 150ms ease',
+                      }}>{o.label}</button>
+                    ))}
                   </div>
-                  {followUp && (
-                    <input type="date" value={followUpDate} onChange={e => setFollowUpDate(e.target.value)}
-                      style={fieldInput}
-                      onFocus={e => { e.target.style.borderColor = '#69C9CA'; e.target.style.boxShadow = '0 0 0 3px rgba(105,201,202,0.2)' }}
-                      onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none' }}
-                    />
-                  )}
-                  <button onClick={() => save({ status: objection === 'a_rappeler' ? 'a_rappeler' : 'pas_interesse' })}
-                    disabled={saving || !objection}
+
+                  {/* Vocal coach section */}
+                  {vocalSection}
+
+                  <FocusTextarea placeholder="Notes (optionnel)" value={notes} onChange={e => setNotes(e.target.value)} />
+
+                  {/* Save button — toujours actif */}
+                  <button
+                    onClick={() => save({ status: objection === 'a_rappeler' ? 'a_rappeler' : 'pas_interesse' })}
+                    disabled={saving}
                     style={{
-                      background: saving || !objection ? '#E5E7EB' : '#69C9CA',
-                      color: saving || !objection ? '#9CA3AF' : '#000000',
+                      background: saving ? '#E5E7EB' : '#69C9CA',
+                      color: saving ? '#9CA3AF' : '#000000',
                       fontWeight: 600, padding: '14px', borderRadius: 10, fontSize: 15,
-                      border: 'none', cursor: saving || !objection ? 'not-allowed' : 'pointer',
-                      minHeight: 48, marginTop: 4, fontFamily: 'Inter, sans-serif', transition: 'background 150ms',
-                    }}>
-                    {saving ? 'Enregistrement...' : 'Enregistrer'}
+                      border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
+                      minHeight: 48, fontFamily: 'Inter, sans-serif', transition: 'background 150ms',
+                    }}
+                  >
+                    {saving ? 'Enregistrement...' : 'Enregistrer la porte'}
                   </button>
                 </div>
               )}

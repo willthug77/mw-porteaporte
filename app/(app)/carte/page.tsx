@@ -53,7 +53,7 @@ export default function CartePage() {
   const loadDoors = useCallback(async () => {
     const { data } = await supabase
       .from('doors')
-      .select('id, user_id, latitude, longitude, address, status, service_type, contract_value, scheduled_date, objection, notes, follow_up_needed, follow_up_date, client_name, phone, created_at, profiles(full_name, color)')
+      .select('id, user_id, latitude, longitude, address, status, service_type, contract_value, scheduled_date, objection, notes, follow_up_needed, follow_up_date, client_name, phone, created_at, transcription, transcription_corrigee, feedback_ia, objection_detectee, suivi_necessaire, note_suivi, date_rappel, analyse_ia_statut, profiles(full_name, color)')
       .order('created_at', { ascending: false })
     setDoors(data || [])
   }, [])
@@ -248,6 +248,7 @@ export default function CartePage() {
           door={detailDoor}
           onClose={() => setDetailDoor(null)}
           onEdit={handleEditFromDetail}
+          userRole={profile?.role}
         />
       )}
 

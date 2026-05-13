@@ -1,6 +1,8 @@
 'use client'
-import { X, Edit2, MapPin, Phone, User, Calendar, FileText, Bell } from 'lucide-react'
+import { useState } from 'react'
+import { X, Edit2, MapPin, User, Calendar, FileText, Bell, Brain } from 'lucide-react'
 import AddressDisplay from '@/components/AddressDisplay'
+import { supabase } from '@/lib/supabase'
 
 export interface DoorDetail {
   id: string
@@ -21,12 +23,21 @@ export interface DoorDetail {
   created_at: string
   updated_at?: string
   profiles?: { full_name: string; color: string }
+  transcription?: string | null
+  transcription_corrigee?: string | null
+  feedback_ia?: string | null
+  objection_detectee?: string | null
+  suivi_necessaire?: boolean
+  note_suivi?: string | null
+  date_rappel?: string | null
+  analyse_ia_statut?: string | null
 }
 
 interface Props {
   door: DoorDetail
   onClose: () => void
   onEdit: () => void
+  userRole?: string
 }
 
 const STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
@@ -57,6 +68,18 @@ const OBJECTION_LABELS: Record<string, string> = {
   a_rappeler:    'À rappeler',
   reflechir:     'Veut réfléchir',
   autre:         'Autre',
+}
+
+const OBJECTION_IA_META: Record<string, { label: string; bg: string; color: string }> = {
+  prix:            { label: 'Prix',           bg: '#FEE2E2', color: '#991B1B' },
+  timing:          { label: 'Timing',         bg: '#FEF3C7', color: '#92400E' },
+  conjoint_absent: { label: 'Conjoint absent',bg: '#FEF3C7', color: '#92400E' },
+  confiance:       { label: 'Confiance',      bg: '#E0E7FF', color: '#3730A3' },
+  besoin_faible:   { label: 'Besoin faible',  bg: '#F3F4F6', color: '#374151' },
+  deja_servi:      { label: 'Déjà servi',     bg: '#F3F4F6', color: '#374151' },
+  pas_interesse:   { label: 'Pas intéressé',  bg: '#FEE2E2', color: '#991B1B' },
+  indecis:         { label: 'Indécis',        bg: '#E0E7FF', color: '#3730A3' },
+  autre:           { label: 'Autre',          bg: '#F3F4F6', color: '#374151' },
 }
 
 function formatDateFr(dateStr: string): string {
@@ -106,13 +129,51 @@ function Separator() {
   return <div style={{ height: 1, background: '#F3F4F6', margin: '16px 0' }} />
 }
 
-export default function DoorDetailSheet({ door, onClose, onEdit }: Props) {
+export default function DoorDetailSheet({ door, onClose, onEdit, userRole }: Props) {
   const status = STATUS_META[door.status] || { label: door.status, bg: '#F3F4F6', color: '#374151' }
   const repondu = door.status !== 'pas_repondu'
   const vendu = door.status === 'vendu'
   const hasClient = !!(door.client_name || door.phone)
   const hasNotes = !!(door.notes?.trim())
   const hasFollowUp = !!(door.follow_up_needed)
+
+  const [iaLoading, setIaLoading] = useState(false)
+  const [localFeedback, setLocalFeedback] = useState<string | null>(null)
+  const [localObjection, setLocalObjection] = useState<string | null>(null)
+
+  const handleRelancerIA = async () => {
+    const texte = door.transcription_corrigee || door.transcription
+    if (!texte || iaLoading) return
+    setIaLoading(true)
+    try {
+      const res = await fetch('/api/coach-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcription: texte }),
+      })
+      const data = await res.json()
+      if (res.ok && data.feedback) {
+        setLocalFeedback(data.feedback)
+        if (data.objection_detectee) setLocalObjection(data.objection_detectee)
+        await supabase.from('doors').update({
+          feedback_ia: data.feedback,
+          objection_detectee: data.objection_detectee,
+          analyse_ia_statut: 'analyse',
+        }).eq('id', door.id)
+      } else {
+        setLocalFeedback('Analyse IA indisponible.')
+      }
+    } catch {
+      setLocalFeedback('Analyse IA indisponible.')
+    } finally {
+      setIaLoading(false)
+    }
+  }
+
+  const displayFeedback = localFeedback ?? door.feedback_ia
+  const displayObjection = localObjection ?? door.objection_detectee
+  const objectionMeta = displayObjection ? (OBJECTION_IA_META[displayObjection] || OBJECTION_IA_META.autre) : null
+  const canRelancer = !localFeedback && door.analyse_ia_statut === 'non_analyse' && !!(door.transcription_corrigee || door.transcription)
 
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', zIndex: 9999 }}>
@@ -255,6 +316,97 @@ export default function DoorDetailSheet({ door, onClose, onEdit }: Props) {
               <InfoRow label="Statut">
                 <Badge label="Suivi planifié" bg="#FEF3C7" color="#92400E" />
               </InfoRow>
+            </>
+          )}
+
+          {/* Coaching IA — manager only */}
+          {userRole === 'manager' && (
+            <>
+              <Separator />
+              <SectionTitle icon={<Brain size={14} />} label="Coaching IA" />
+
+              {/* Résumé vendeur */}
+              {(door.transcription_corrigee || door.transcription) ? (
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Résumé du vendeur</span>
+                  <div style={{
+                    background: '#F9FAFB', borderRadius: 8, padding: '10px 12px',
+                    fontSize: 13, color: '#374151', lineHeight: 1.6,
+                    fontStyle: 'italic',
+                  }}>
+                    {door.transcription_corrigee || door.transcription}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Résumé du vendeur</span>
+                  <span style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>Aucune transcription enregistrée</span>
+                </div>
+              )}
+
+              {/* Feedback coach IA */}
+              <div style={{ marginBottom: 12 }}>
+                <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Feedback coach IA</span>
+                {displayFeedback ? (
+                  <div style={{
+                    background: 'linear-gradient(135deg, #E8F8F8 0%, #F0FFF4 100%)',
+                    border: '1px solid #A7F3D0',
+                    borderRadius: 8, padding: '10px 12px',
+                    fontSize: 13, color: '#065F46', lineHeight: 1.7,
+                    whiteSpace: 'pre-line',
+                  }}>
+                    {displayFeedback}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' }}>Aucune analyse IA pour cette porte</span>
+                )}
+              </div>
+
+              {/* Objection détectée */}
+              {objectionMeta && (
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 6 }}>Objection détectée</span>
+                  <Badge label={objectionMeta.label} bg={objectionMeta.bg} color={objectionMeta.color} />
+                </div>
+              )}
+
+              {/* Note de suivi coach */}
+              {door.suivi_necessaire && door.note_suivi && (
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, color: '#6B7280', display: 'block', marginBottom: 4 }}>Note de suivi</span>
+                  <div style={{
+                    background: '#FEF3C7', borderRadius: 8, padding: '10px 12px',
+                    fontSize: 13, color: '#92400E', lineHeight: 1.6,
+                  }}>
+                    {door.note_suivi}
+                    {door.date_rappel && (
+                      <div style={{ marginTop: 4, fontSize: 12, fontWeight: 600 }}>
+                        Rappel : {formatDateShort(door.date_rappel)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Bouton relancer analyse */}
+              {canRelancer && (
+                <button
+                  onClick={handleRelancerIA}
+                  disabled={iaLoading}
+                  style={{
+                    background: iaLoading ? '#E5E7EB' : '#69C9CA',
+                    color: iaLoading ? '#6B7280' : '#000000',
+                    border: 'none', borderRadius: 8,
+                    padding: '10px 18px', fontSize: 13, fontWeight: 600,
+                    cursor: iaLoading ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    transition: 'background 150ms',
+                  }}
+                >
+                  <Brain size={14} />
+                  {iaLoading ? 'Analyse en cours…' : 'Relancer l\'analyse IA'}
+                </button>
+              )}
             </>
           )}
         </div>
