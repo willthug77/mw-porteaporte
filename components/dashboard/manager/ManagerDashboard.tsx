@@ -24,6 +24,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import DoorForm from '@/components/DoorForm'
 import { getPinBadge } from '@/lib/colors'
+import ObjectifsModal from '@/components/dashboard/manager/ObjectifsModal'
 
 type Tab = 'global' | 'equipe' | 'analytiques' | 'alertes' | 'portes'
 type RevenusPeriod = 'today' | '3j' | '7j' | '30j' | 'mois'
@@ -190,10 +191,7 @@ export default function ManagerDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('global')
   const [selectedVendeur, setSelectedVendeur] = useState<any>(null)
   const [showObjectifsModal, setShowObjectifsModal] = useState(false)
-  const [objectifsInput, setObjectifsInput] = useState<Record<string, number>>({})
-  const [globalInput, setGlobalInput] = useState<number>(DEFAULT_DAILY_GOAL)
   const [vendeursList, setVendeursList] = useState<any[]>([])
-  const [vendeursSaved, setVendeursSaved] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [chart30Data, setChart30Data] = useState<Array<{ date: string; portes: number; ventes: number }>>([])
   const [hourData, setHourData] = useState<Array<{ heure: number; count: number }>>([])
@@ -234,17 +232,10 @@ export default function ManagerDashboard() {
   const { stats, vendeurStats, dernieresPortes, chartData, vendeurs, loading, refetch } =
     useDashboardManager()
 
-  // ── Sync vendeursList from hook data (already fetched by getAllVendeurs)
+  // ── Sync vendeursList from hook data
   useEffect(() => {
     if (vendeurs.length === 0) return
     setVendeursList(vendeurs)
-    setObjectifsInput((prev) => {
-      const next: Record<string, number> = {}
-      vendeurs.forEach((v) => {
-        next[v.id] = prev[v.id] !== undefined ? prev[v.id] : (v.daily_goal ?? DEFAULT_DAILY_GOAL)
-      })
-      return next
-    })
     setObjectifs((prev) => {
       const next: Record<string, number> = { ...prev }
       vendeurs.forEach((v) => {
@@ -306,24 +297,6 @@ export default function ManagerDashboard() {
     setSelectedVendeur(v)
     const doors = await Q.getDernieresPortes(10, v.id)
     setVendeurDoors(doors)
-  }
-
-  // Mod 8: save daily_goal to profiles
-  const handleSaveObjectifs = async () => {
-    await Promise.all(
-      Object.entries(objectifsInput).map(([vid, obj]) => Q.updateDailyGoal(vid, obj))
-    )
-    setObjectifs({ ...objectifsInput })
-    setShowObjectifsModal(false)
-    setVendeursSaved(true)
-    setTimeout(() => setVendeursSaved(false), 2500)
-    refetch()
-  }
-
-  const handleApplyAll = () => {
-    const next: Record<string, number> = {}
-    vendeursList.forEach((v) => { next[v.id] = globalInput })
-    setObjectifsInput(next)
   }
 
   const loadAllDoors = async () => {
@@ -1118,13 +1091,6 @@ export default function ManagerDashboard() {
         )
       })()}
 
-      {/* Objectifs saved toast */}
-      {vendeursSaved && (
-        <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#10B981', color: '#FFFFFF', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, fontFamily: 'Inter, sans-serif', zIndex: 10002, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
-          ✓ Objectifs sauvegardés
-        </div>
-      )}
-
       {/* Delete Toast */}
       {deleteToast && (
         <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#EF4444', color: '#FFFFFF', borderRadius: 8, padding: '10px 20px', fontSize: 14, fontWeight: 600, fontFamily: 'Inter, sans-serif', zIndex: 10001, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}>
@@ -1201,55 +1167,8 @@ export default function ManagerDashboard() {
         </div>
       )}
 
-      {/* Objectifs Modal (Mod 8: saves to profiles.daily_goal) */}
       {showObjectifsModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-          onClick={() => setShowObjectifsModal(false)}>
-          <div style={{ background: '#FFFFFF', borderRadius: '16px 16px 0 0', width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: '20px 16px 40px', fontFamily: 'Inter, sans-serif' }}
-            onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <h2 style={{ color: '#111827', fontWeight: 700, fontSize: 18, margin: 0 }}>Définir les objectifs</h2>
-              <button onClick={() => setShowObjectifsModal(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: 8, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                <X size={18} color="#374151" />
-              </button>
-            </div>
-            <div style={{ background: '#F9FAFB', borderRadius: 10, padding: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <p style={{ color: '#374151', fontWeight: 500, fontSize: 13, margin: '0 0 4px' }}>Appliquer à tous</p>
-                <input
-                  type="number" min={1} max={200} value={globalInput}
-                  onChange={(e) => setGlobalInput(Number(e.target.value))}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 14, fontFamily: 'Inter, sans-serif', outline: 'none', color: '#111827' }}
-                />
-              </div>
-              <button onClick={handleApplyAll} style={{ background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'Inter, sans-serif', flexShrink: 0, alignSelf: 'flex-end' }}>
-                Appliquer
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {vendeursList.length === 0 && (
-                <p style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>Aucun vendeur trouvé</p>
-              )}
-              {vendeursList.map((v) => (
-                <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#F9FAFB', borderRadius: 10, padding: '10px 14px' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: v.color || '#69C9CA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
-                    {(v.full_name || '??').slice(0, 2).toUpperCase()}
-                  </div>
-                  <p style={{ color: '#111827', fontWeight: 500, fontSize: 13, margin: 0, flex: 1 }}>{v.full_name}</p>
-                  <input
-                    type="number" min={1} max={200}
-                    value={objectifsInput[v.id] ?? DEFAULT_DAILY_GOAL}
-                    onChange={(e) => setObjectifsInput((prev) => ({ ...prev, [v.id]: Number(e.target.value) }))}
-                    style={{ width: 70, padding: '6px 10px', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 14, fontFamily: 'Inter, sans-serif', outline: 'none', color: '#111827', textAlign: 'center' }}
-                  />
-                </div>
-              ))}
-            </div>
-            <button onClick={handleSaveObjectifs} style={{ width: '100%', background: '#69C9CA', color: '#FFFFFF', border: 'none', borderRadius: 10, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-              Enregistrer
-            </button>
-          </div>
-        </div>
+        <ObjectifsModal onClose={() => setShowObjectifsModal(false)} />
       )}
     </div>
   )

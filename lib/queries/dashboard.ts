@@ -187,10 +187,40 @@ export async function getDernieresPortes(limit: number, userId?: string): Promis
 export async function getAllVendeurs(): Promise<any[]> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, email, color, created_at, daily_goal, commission_type, commission_value')
-    .eq('role', 'vendeur')
+    .select('id, full_name, email, color, created_at, daily_goal, commission_type, commission_value, role')
 
-  return data ?? []
+  return (data ?? []).filter((p: any) => p.role !== 'manager')
+}
+
+export async function getObjectifsAujourdhui(date: string): Promise<Array<{ vendeur_id: string; type: string; valeur: number }>> {
+  try {
+    const { data, error } = await supabase
+      .from('objectifs')
+      .select('vendeur_id, type, valeur')
+      .eq('date', date)
+
+    if (error) return []
+    return data ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function upsertObjectifTyped(
+  vendeurId: string,
+  type: 'portes' | 'ventes',
+  date: string,
+  valeur: number
+): Promise<{ error: string | null }> {
+  try {
+    const { error } = await supabase.from('objectifs').upsert(
+      { vendeur_id: vendeurId, type, date, valeur },
+      { onConflict: 'vendeur_id,date,type' }
+    )
+    return { error: error?.message ?? null }
+  } catch (e: any) {
+    return { error: e?.message ?? 'Erreur inconnue' }
+  }
 }
 
 export async function getVendeurStats(): Promise<any[]> {
