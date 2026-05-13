@@ -131,15 +131,22 @@ export default function VendeurDashboard() {
   const profile = stats.profile
   const firstName = profile?.full_name?.split(' ')[0] || 'vous'
 
-  // Objectif manager (Mod 2 — now read-only)
-  const objectifManager = stats.objectifJour ?? 0
-  const pctObjectif = objectifManager > 0 ? Math.round((stats.portesToday / objectifManager) * 100) : 0
-  const progressColor =
-    pctObjectif >= 100
-      ? '#10B981'
-      : pctObjectif >= GOAL_DANGER_PERCENT
-      ? '#F59E0B'
-      : '#69C9CA'
+  // Objectifs manager (lus depuis la table objectifs)
+  const objectifPortes = stats.objectifPortes
+  const objectifVentes = stats.objectifVentes
+  const hasObjectifManager = objectifPortes !== null || objectifVentes !== null
+
+  const pctPortes = objectifPortes && objectifPortes > 0
+    ? Math.min(Math.round((stats.portesToday / objectifPortes) * 100), 100)
+    : 0
+  const pctVentes = objectifVentes && objectifVentes > 0
+    ? Math.min(Math.round((stats.ventesToday / objectifVentes) * 100), 100)
+    : 0
+
+  const progressColorPortes =
+    pctPortes >= 100 ? '#10B981' : pctPortes >= GOAL_DANGER_PERCENT ? '#F59E0B' : '#69C9CA'
+  const progressColorVentes =
+    pctVentes >= 100 ? '#10B981' : pctVentes >= GOAL_DANGER_PERCENT ? '#F59E0B' : '#69C9CA'
 
   const todayDate = new Date().toLocaleDateString('fr-CA', {
     weekday: 'long',
@@ -304,46 +311,57 @@ export default function VendeurDashboard() {
           </button>
         </div>
 
-        {/* Mod 2: Objectif manager (read-only) */}
+        {/* Objectif manager (read-only, depuis table objectifs) */}
         <div style={{
           background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12,
           padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h2 style={{
-                color: '#374151', fontWeight: 600, fontSize: 14, margin: 0,
-                textTransform: 'uppercase', letterSpacing: '0.05em',
-              }}>
-                Objectif manager
-              </h2>
-              <Lock size={13} color="#9CA3AF" />
-            </div>
-            {objectifManager > 0 && (
-              <span style={{ color: progressColor, fontWeight: 700, fontSize: 18 }}>
-                {pctObjectif}%
-              </span>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <h2 style={{
+              color: '#374151', fontWeight: 600, fontSize: 14, margin: 0,
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+            }}>
+              Objectif manager
+            </h2>
+            <Lock size={13} color="#9CA3AF" />
           </div>
 
-          {objectifManager === 0 ? (
+          {!hasObjectifManager ? (
             <p style={{ color: '#9CA3AF', fontSize: 13, margin: 0, textAlign: 'center', padding: '8px 0' }}>
-              Aucun objectif défini
+              Aucun objectif fixé par le manager
             </p>
           ) : (
-            <>
-              <ProgressBar value={pctObjectif} color={progressColor} height={10} animated />
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {objectifPortes !== null && (
                 <div>
-                  <p style={{ color: '#111827', fontWeight: 600, fontSize: 15, margin: '0 0 2px' }}>
-                    {stats.portesToday} / {objectifManager} portes
-                  </p>
-                  <p style={{ color: '#6B7280', fontSize: 12, margin: 0 }}>
-                    {getMotivationalMessage(pctObjectif)}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <p style={{ color: '#111827', fontWeight: 600, fontSize: 15, margin: 0 }}>
+                      {stats.portesToday} / {objectifPortes} portes cognées
+                    </p>
+                    <span style={{ color: progressColorPortes, fontWeight: 700, fontSize: 15 }}>
+                      {pctPortes}%
+                    </span>
+                  </div>
+                  <ProgressBar value={pctPortes} color={progressColorPortes} height={10} animated />
+                  <p style={{ color: '#6B7280', fontSize: 12, margin: '6px 0 0' }}>
+                    {getMotivationalMessage(pctPortes)}
                   </p>
                 </div>
-              </div>
-            </>
+              )}
+              {objectifVentes !== null && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <p style={{ color: '#111827', fontWeight: 600, fontSize: 15, margin: 0 }}>
+                      {stats.ventesToday} / {objectifVentes} ventes
+                    </p>
+                    <span style={{ color: progressColorVentes, fontWeight: 700, fontSize: 15 }}>
+                      {pctVentes}%
+                    </span>
+                  </div>
+                  <ProgressBar value={pctVentes} color={progressColorVentes} height={10} animated />
+                </div>
+              )}
+            </div>
           )}
         </div>
 

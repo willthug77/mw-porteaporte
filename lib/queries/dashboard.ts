@@ -223,6 +223,35 @@ export async function upsertObjectifTyped(
   }
 }
 
+export async function getObjectifsVendeurJour(
+  userId: string,
+  date: string
+): Promise<{ portes: number | null; ventes: number | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('objectifs')
+      .select('type, valeur')
+      .eq('vendeur_id', userId)
+      .eq('date', date)
+
+    console.log('[DEBUG VENDEUR] user.id:', userId)
+    console.log('[DEBUG VENDEUR] objectifs récupérés:', data)
+    console.log('[DEBUG VENDEUR] erreur:', error)
+
+    if (error || !data) return { portes: null, ventes: null }
+
+    let portes: number | null = null
+    let ventes: number | null = null
+    for (const row of data) {
+      if (row.type === 'portes') portes = row.valeur
+      if (row.type === 'ventes') ventes = row.valeur
+    }
+    return { portes, ventes }
+  } catch {
+    return { portes: null, ventes: null }
+  }
+}
+
 export async function getVendeurStats(): Promise<any[]> {
   const { data } = await supabase
     .from('vendeur_stats')

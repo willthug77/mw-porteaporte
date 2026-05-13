@@ -92,7 +92,11 @@ export default function ObjectifsModal({ onClose }: Props) {
 
     updateField(vendeurId, `${type}_saving`, true)
 
+    console.log('[DEBUG MANAGER] vendeur sélectionné:', vendeurId, v.full_name)
+    console.log('[DEBUG MANAGER] objectif à sauvegarder:', { vendeur_id: vendeurId, type, valeur, date: today })
+
     const { error } = await upsertObjectifTyped(vendeurId, type, today, valeur)
+    console.log('[DEBUG MANAGER] erreur upsert:', error)
 
     updateField(vendeurId, `${type}_saving`, false)
 

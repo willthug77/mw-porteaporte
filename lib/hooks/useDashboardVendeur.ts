@@ -11,7 +11,8 @@ export interface VendeurStats {
   revenusHier: number
   tauxConversion: number
   tauxConversionHier: number
-  objectifJour: number | null
+  objectifPortes: number | null
+  objectifVentes: number | null
   commissions: number
   suivis: any[]
   loading: boolean
@@ -28,7 +29,8 @@ const defaults: VendeurStats = {
   revenusHier: 0,
   tauxConversion: 0,
   tauxConversionHier: 0,
-  objectifJour: null,
+  objectifPortes: null,
+  objectifVentes: null,
   commissions: 0,
   suivis: [],
   loading: true,
@@ -55,6 +57,7 @@ export function useDashboardVendeur(userId: string) {
       revenusHier,
       suivis,
       ventesParJour7,
+      objectifs,
     ] = await Promise.all([
       Q.getProfileForDashboard(userId),
       Q.getPortesCount(today, userId),
@@ -65,6 +68,7 @@ export function useDashboardVendeur(userId: string) {
       Q.getRevenusToday(yesterday, userId),
       Q.getSuivisVendeur(userId),
       Q.getVentesParJour7(userId),
+      Q.getObjectifsVendeurJour(userId, today),
     ])
 
     const tauxConversion =
@@ -81,8 +85,6 @@ export function useDashboardVendeur(userId: string) {
       }
     }
 
-    const objectifJour = profile?.daily_goal ?? null
-
     setStats({
       portesToday,
       portesHier,
@@ -92,7 +94,8 @@ export function useDashboardVendeur(userId: string) {
       revenusHier,
       tauxConversion,
       tauxConversionHier,
-      objectifJour,
+      objectifPortes: objectifs.portes,
+      objectifVentes: objectifs.ventes,
       commissions,
       suivis,
       loading: false,
@@ -104,6 +107,14 @@ export function useDashboardVendeur(userId: string) {
   useEffect(() => {
     if (!userId) return
     fetchAll()
+  }, [userId, fetchAll])
+
+  // Refresh quand la fenêtre reprend le focus (manager vient de sauvegarder)
+  useEffect(() => {
+    if (!userId) return
+    const handleFocus = () => { fetchAll() }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
   }, [userId, fetchAll])
 
   return { stats, refetch: fetchAll }
