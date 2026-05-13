@@ -31,12 +31,22 @@ export default function CartePage() {
   const [clearTempSignal, setClearTempSignal] = useState(0)
   // externalTrigger tells MapComponent to place a temp marker + recenter (used for search-modal flow)
   const [externalTrigger, setExternalTrigger] = useState<{ lat: number; lng: number; id: number } | null>(null)
+  const [objectifPortes, setObjectifPortes] = useState<number | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(data)
+      const today = new Date().toISOString().split('T')[0]
+      const { data: objData } = await supabase
+        .from('objectifs')
+        .select('valeur')
+        .eq('vendeur_id', user.id)
+        .eq('date', today)
+        .eq('type', 'portes')
+        .maybeSingle()
+      setObjectifPortes(objData?.valeur ?? null)
     })
   }, [])
 
@@ -160,12 +170,12 @@ export default function CartePage() {
       </div>
 
       {/* Mod 11: Widget objectif vendeur */}
-      {profile?.role === 'vendeur' && (profile?.daily_goal ?? 0) > 0 && (() => {
+      {profile?.role === 'vendeur' && objectifPortes !== null && (() => {
         const portesAujourdhui = doors.filter((d) =>
           d.user_id === profile.id &&
           new Date(d.created_at).toDateString() === new Date().toDateString()
         ).length
-        const progression = Math.min(portesAujourdhui / profile.daily_goal, 1)
+        const progression = Math.min(portesAujourdhui / objectifPortes, 1)
         return (
           <div style={{
             position: 'absolute', bottom: 80, left: 16, zIndex: 1000,
@@ -177,7 +187,7 @@ export default function CartePage() {
               Objectif du jour
             </p>
             <p style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>
-              {portesAujourdhui} / {profile.daily_goal} portes
+              {portesAujourdhui} / {objectifPortes} portes
             </p>
             <div style={{ background: '#E5E7EB', borderRadius: 4, height: 6 }}>
               <div style={{

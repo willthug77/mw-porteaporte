@@ -1,5 +1,5 @@
 export const COMMISSION_RATE = 0.10
-export const DEFAULT_DAILY_GOAL = 20
+// export const DEFAULT_DAILY_GOAL = 20 // supprimé — remplacé par table objectifs
 export const REFRESH_INTERVAL_MS = 60_000
 export const INACTIVE_THRESHOLD_HOURS = 3
 export const WORKING_HOURS_START = 8

@@ -19,7 +19,6 @@ import {
   WORKING_HOURS_START,
   WORKING_HOURS_END,
   LOW_CONVERSION_THRESHOLD,
-  DEFAULT_DAILY_GOAL,
 } from '@/lib/config'
 import { supabase } from '@/lib/supabase'
 import DoorForm from '@/components/DoorForm'
@@ -239,7 +238,7 @@ export default function ManagerDashboard() {
     setObjectifs((prev) => {
       const next: Record<string, number> = { ...prev }
       vendeurs.forEach((v) => {
-        if (next[v.id] === undefined) next[v.id] = v.daily_goal ?? DEFAULT_DAILY_GOAL
+        if (next[v.id] === undefined) next[v.id] = v.daily_goal ?? 0
       })
       return next
     })
