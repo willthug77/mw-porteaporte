@@ -8,7 +8,9 @@
 -- Calcule les stats agrégées par vendeur pour le dashboard manager.
 -- La colonne 'today' est calculée côté DB (UTC). Si vos vendeurs sont
 -- en UTC-4/UTC-5, les données de fin de nuit peuvent avoir 1h de décalage.
-CREATE OR REPLACE VIEW vendeur_stats AS
+-- DROP requis car CREATE OR REPLACE ne peut pas changer les noms de colonnes.
+DROP VIEW IF EXISTS vendeur_stats;
+CREATE VIEW vendeur_stats AS
 SELECT
   p.id,
   p.full_name,
