@@ -195,7 +195,7 @@ export default function ManagerDashboard() {
   const [chart30Data, setChart30Data] = useState<Array<{ date: string; portes: number; ventes: number }>>([])
   const [hourData, setHourData] = useState<Array<{ heure: number; count: number }>>([])
   const [vendeurDoors, setVendeurDoors] = useState<any[]>([])
-  const [objectifs, setObjectifs] = useState<Record<string, number>>({})
+  // objectifs locaux supprimés — objectifsJour vient du hook useDashboardManager
 
   // Portes tab
   const [allDoors, setAllDoors] = useState<any[]>([])
@@ -228,20 +228,13 @@ export default function ManagerDashboard() {
   const [followUpDoors, setFollowUpDoors] = useState<any[]>([])
   const [followUpDoorsLoading, setFollowUpDoorsLoading] = useState(false)
 
-  const { stats, vendeurStats, dernieresPortes, chartData, vendeurs, loading, refetch } =
+  const { stats, vendeurStats, dernieresPortes, chartData, vendeurs, objectifsJour, loading, refetch } =
     useDashboardManager()
 
   // ── Sync vendeursList from hook data
   useEffect(() => {
     if (vendeurs.length === 0) return
     setVendeursList(vendeurs)
-    setObjectifs((prev) => {
-      const next: Record<string, number> = { ...prev }
-      vendeurs.forEach((v) => {
-        if (next[v.id] === undefined) next[v.id] = v.daily_goal ?? 0
-      })
-      return next
-    })
   }, [vendeurs])
 
   const loadAll = useCallback(async () => {
@@ -334,14 +327,15 @@ export default function ManagerDashboard() {
 
   const perfAlerts: Array<{ vendeur: any; type: 'warning' | 'danger' | 'info'; alertType: string; description: string }> = []
   vendeurStats.forEach((v) => {
-    const totalPortes = v.total_portes ?? 0
+    const totalReponses = v.total_reponses ?? 0
     const totalVentes = v.total_ventes ?? 0
     const portesAujourdhui = v.portes_aujourd_hui ?? 0
     if (isWorkingHours && portesAujourdhui === 0) {
       perfAlerts.push({ vendeur: v, type: 'warning', alertType: 'Inactif', description: `${v.full_name} n'a enregistré aucune porte aujourd'hui.` })
     }
-    if (totalPortes > 5 && (totalVentes / totalPortes) * 100 < LOW_CONVERSION_THRESHOLD) {
-      perfAlerts.push({ vendeur: v, type: 'danger', alertType: 'Conversion faible', description: `Taux de conversion: ${Math.round((totalVentes / totalPortes) * 100)}% (seuil: ${LOW_CONVERSION_THRESHOLD}%)` })
+    // Alerte si taux de closing < seuil (sur les réponses, pas les portes totales)
+    if (totalReponses > 3 && (totalVentes / totalReponses) * 100 < LOW_CONVERSION_THRESHOLD) {
+      perfAlerts.push({ vendeur: v, type: 'danger', alertType: 'Closing faible', description: `Taux de closing: ${Math.round((totalVentes / totalReponses) * 100)}% sur ${totalReponses} réponses (seuil: ${LOW_CONVERSION_THRESHOLD}%)` })
     }
   })
 
@@ -385,11 +379,12 @@ export default function ManagerDashboard() {
   const hourChartData = hourData
     .filter((h) => h.heure >= 7 && h.heure <= 21)
     .map((h) => ({ heure: `${h.heure}h`, count: h.count }))
+  // Taux de closing RÉEL = ventes / réponses (jamais ventes / portes)
   const conversionByVendeur = vendeurStats
-    .filter((v) => (v.total_portes ?? 0) > 0)
+    .filter((v) => (v.total_reponses ?? 0) > 0)
     .map((v) => ({
       name: (v.full_name || '').split(' ')[0],
-      taux: Math.round(((v.total_ventes ?? 0) / (v.total_portes ?? 1)) * 100),
+      taux: Math.round(((v.total_ventes ?? 0) / (v.total_reponses ?? 1)) * 100),
       fill: v.color || '#69C9CA',
     }))
 
@@ -576,7 +571,13 @@ export default function ManagerDashboard() {
           <div style={{ padding: '16px 16px 40px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {vendeurStats.map((v) => (
-                <VendeurCard key={v.id} vendeur={v} onClick={() => handleVendeurClick(v)} objectif={objectifs[v.id]} />
+                <VendeurCard
+                  key={v.id}
+                  vendeur={v}
+                  onClick={() => handleVendeurClick(v)}
+                  objectifPortes={objectifsJour[v.id]?.portes}
+                  objectifVentes={objectifsJour[v.id]?.ventes}
+                />
               ))}
               {vendeurStats.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '48px 0', color: '#6B7280', fontSize: 14 }}>Aucun vendeur</div>
@@ -790,7 +791,7 @@ export default function ManagerDashboard() {
                     data={vendeurStats.map((v) => ({
                       name: (v.full_name || '').split(' ')[0],
                       réalisé: v.portes_aujourd_hui ?? 0,
-                      objectif: objectifs[v.id] ?? 0,
+                      objectif: objectifsJour[v.id]?.portes ?? 0,
                     }))}
                     margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
                   >
@@ -1121,7 +1122,13 @@ export default function ManagerDashboard() {
               {[
                 { label: 'Total portes', value: selectedVendeur.total_portes ?? 0, color: '#69C9CA' },
                 { label: 'Total ventes', value: selectedVendeur.total_ventes ?? 0, color: '#10B981' },
-                { label: 'Conversion', value: (selectedVendeur.total_portes ?? 0) > 0 ? `${Math.round(((selectedVendeur.total_ventes ?? 0) / selectedVendeur.total_portes) * 100)}%` : '0%', color: '#3B82F6' },
+                {
+                  label: 'Taux closing',
+                  value: (selectedVendeur.total_reponses ?? 0) > 0
+                    ? `${Math.round(((selectedVendeur.total_ventes ?? 0) / (selectedVendeur.total_reponses ?? 1)) * 100)}%`
+                    : 'N/A',
+                  color: '#3B82F6',
+                },
               ].map((s) => (
                 <div key={s.label} style={{ background: '#F9FAFB', borderRadius: 10, padding: '12px 10px', textAlign: 'center' }}>
                   <p style={{ color: s.color, fontWeight: 700, fontSize: 20, margin: '0 0 2px' }}>{s.value}</p>

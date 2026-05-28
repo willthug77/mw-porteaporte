@@ -5,12 +5,17 @@ import * as Q from '@/lib/queries/dashboard'
 export interface VendeurStats {
   portesToday: number
   portesHier: number
+  reponsesToday: number
+  reponsesHier: number
   ventesToday: number
   ventesHier: number
   revenusToday: number
   revenusHier: number
-  tauxConversion: number
-  tauxConversionHier: number
+  // tauxReponse = réponses / portes (quelqu'un a ouvert la porte)
+  tauxReponse: number
+  tauxReponseHier: number
+  // tauxClosing = ventes / réponses (conversion réelle sur les gens qui ont répondu)
+  tauxClosing: number | null
   objectifPortes: number | null
   objectifVentes: number | null
   commissions: number
@@ -23,12 +28,15 @@ export interface VendeurStats {
 const defaults: VendeurStats = {
   portesToday: 0,
   portesHier: 0,
+  reponsesToday: 0,
+  reponsesHier: 0,
   ventesToday: 0,
   ventesHier: 0,
   revenusToday: 0,
   revenusHier: 0,
-  tauxConversion: 0,
-  tauxConversionHier: 0,
+  tauxReponse: 0,
+  tauxReponseHier: 0,
+  tauxClosing: null,
   objectifPortes: null,
   objectifVentes: null,
   commissions: 0,
@@ -55,6 +63,8 @@ export function useDashboardVendeur(userId: string) {
       portesHier,
       ventesHier,
       revenusHier,
+      reponsesToday,
+      reponsesHier,
       suivis,
       ventesParJour7,
       objectifs,
@@ -66,17 +76,25 @@ export function useDashboardVendeur(userId: string) {
       Q.getPortesCount(yesterday, userId),
       Q.getVentesCount(yesterday, userId),
       Q.getRevenusToday(yesterday, userId),
+      Q.getReponsesCount(today, userId),
+      Q.getReponsesCount(yesterday, userId),
       Q.getSuivisVendeur(userId),
       Q.getVentesParJour7(userId),
       Q.getObjectifsVendeurJour(userId, today),
     ])
 
-    console.log('[DEBUG] userId:', userId, '| objectif DB:', objectifs)
+    // Taux de réponse : personnes ayant répondu / portes cognées
+    const tauxReponse = portesToday > 0
+      ? Math.round((reponsesToday / portesToday) * 1000) / 10
+      : 0
+    const tauxReponseHier = portesHier > 0
+      ? Math.round((reponsesHier / portesHier) * 1000) / 10
+      : 0
 
-    const tauxConversion =
-      portesToday > 0 ? Math.round((ventesToday / portesToday) * 1000) / 10 : 0
-    const tauxConversionHier =
-      portesHier > 0 ? Math.round((ventesHier / portesHier) * 1000) / 10 : 0
+    // Taux de closing RÉEL : ventes / réponses (jamais division par zéro)
+    const tauxClosing = reponsesToday > 0
+      ? Math.round((ventesToday / reponsesToday) * 1000) / 10
+      : null
 
     let commissions = 0
     if (profile) {
@@ -90,12 +108,15 @@ export function useDashboardVendeur(userId: string) {
     setStats({
       portesToday,
       portesHier,
+      reponsesToday,
+      reponsesHier,
       ventesToday,
       ventesHier,
       revenusToday,
       revenusHier,
-      tauxConversion,
-      tauxConversionHier,
+      tauxReponse,
+      tauxReponseHier,
+      tauxClosing,
       objectifPortes: objectifs.portes,
       objectifVentes: objectifs.ventes,
       commissions,
@@ -111,7 +132,7 @@ export function useDashboardVendeur(userId: string) {
     fetchAll()
   }, [userId, fetchAll])
 
-  // Refresh quand la fenêtre reprend le focus (manager vient de sauvegarder)
+  // Refresh quand la fenêtre reprend le focus (le manager vient de modifier les objectifs)
   useEffect(() => {
     if (!userId) return
     const handleFocus = () => { fetchAll() }

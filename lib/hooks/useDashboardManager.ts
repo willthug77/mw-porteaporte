@@ -33,6 +33,8 @@ export function useDashboardManager() {
   const [dernieresPortes, setDernieresPortes] = useState<any[]>([])
   const [chartData, setChartData] = useState<Array<{ date: string; portes: number; ventes: number }>>([])
   const [vendeurs, setVendeurs] = useState<any[]>([])
+  // objectifsJour: objectifs manager du jour par vendeur_id
+  const [objectifsJour, setObjectifsJour] = useState<Record<string, { portes: number | null; ventes: number | null }>>({})
   const [loading, setLoading] = useState(true)
 
   const fetchAll = useCallback(async () => {
@@ -50,6 +52,7 @@ export function useDashboardManager() {
       vendeursData,
       followUpCount,
       revenuePeriods,
+      objectifsData,
     ] = await Promise.all([
       Q.getPortesCount(today),
       Q.getVentesCount(today),
@@ -61,6 +64,7 @@ export function useDashboardManager() {
       Q.getAllVendeurs(),
       Q.getFollowUpCount(),
       Q.getRevenuesPeriods(),
+      Q.getObjectifsAujourdhui(today),
     ])
 
     setStats({
@@ -79,6 +83,16 @@ export function useDashboardManager() {
     setDernieresPortes(dernieresPortesData)
     setChartData(chartDataResult)
     setVendeurs(vendeursData)
+
+    // Indexer les objectifs par vendeur_id
+    const objMap: Record<string, { portes: number | null; ventes: number | null }> = {}
+    ;(objectifsData as any[]).forEach((o) => {
+      if (!objMap[o.vendeur_id]) objMap[o.vendeur_id] = { portes: null, ventes: null }
+      if (o.type === 'portes') objMap[o.vendeur_id].portes = o.valeur
+      if (o.type === 'ventes') objMap[o.vendeur_id].ventes = o.valeur
+    })
+    setObjectifsJour(objMap)
+
     setLoading(false)
   }, [])
 
@@ -88,5 +102,5 @@ export function useDashboardManager() {
     return () => clearInterval(interval)
   }, [fetchAll])
 
-  return { stats, vendeurStats, dernieresPortes, chartData, vendeurs, loading, refetch: fetchAll }
+  return { stats, vendeurStats, dernieresPortes, chartData, vendeurs, objectifsJour, loading, refetch: fetchAll }
 }

@@ -39,6 +39,21 @@ export async function getVentesCount(date: string, userId?: string): Promise<num
   return count ?? 0
 }
 
+// Réponses = portes où quelqu'un a ouvert (tout statut sauf 'pas_repondu')
+export async function getReponsesCount(date: string, userId?: string): Promise<number> {
+  let query = supabase
+    .from('doors')
+    .select('id', { count: 'exact', head: true })
+    .neq('status', 'pas_repondu')
+    .gte('created_at', `${date}T00:00:00`)
+    .lt('created_at', `${date}T23:59:59.999`)
+
+  if (userId) query = query.eq('user_id', userId)
+
+  const { count } = await query
+  return count ?? 0
+}
+
 export async function getRevenusToday(date: string, userId?: string): Promise<number> {
   let query = supabase
     .from('doors')
@@ -253,11 +268,42 @@ export async function getObjectifsVendeurJour(
 }
 
 export async function getVendeurStats(): Promise<any[]> {
-  const { data } = await supabase
-    .from('vendeur_stats')
-    .select('id, full_name, color, portes_aujourd_hui, ventes_aujourd_hui, montant_aujourd_hui, total_portes, total_ventes')
+  const today = new Date().toISOString().slice(0, 10)
 
-  return data ?? []
+  const { data, error } = await supabase
+    .from('vendeur_stats')
+    .select('id, full_name, color, portes_aujourd_hui, ventes_aujourd_hui, montant_aujourd_hui, reponses_aujourd_hui, total_portes, total_ventes, total_reponses')
+
+  if (!error && data && data.length > 0) return data
+
+  // Fallback JS si la vue n'est pas encore créée en base
+  // (exécuter supabase/migration_dashboard.sql dans Supabase SQL Editor pour corriger)
+  const [{ data: vendeurs }, { data: doors }] = await Promise.all([
+    supabase.from('profiles').select('id, full_name, color').neq('role', 'manager'),
+    supabase.from('doors').select('id, user_id, status, contract_value, created_at'),
+  ])
+
+  if (!vendeurs) return []
+  const allDoors = (doors ?? []) as any[]
+
+  return vendeurs.map((v: any) => {
+    const mine = allDoors.filter((d) => d.user_id === v.id)
+    const todayDoors = mine.filter((d) => (d.created_at as string).startsWith(today))
+    const todaySold = todayDoors.filter((d) => d.status === 'vendu')
+    const todayRep = todayDoors.filter((d) => d.status !== 'pas_repondu')
+    return {
+      id: v.id,
+      full_name: v.full_name,
+      color: v.color,
+      portes_aujourd_hui: todayDoors.length,
+      ventes_aujourd_hui: todaySold.length,
+      montant_aujourd_hui: todaySold.reduce((s: number, d: any) => s + (Number(d.contract_value) || 0), 0),
+      reponses_aujourd_hui: todayRep.length,
+      total_portes: mine.length,
+      total_ventes: mine.filter((d) => d.status === 'vendu').length,
+      total_reponses: mine.filter((d) => d.status !== 'pas_repondu').length,
+    }
+  })
 }
 
 export async function getProfileForDashboard(userId: string): Promise<any | null> {

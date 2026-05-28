@@ -27,27 +27,58 @@ export default function CartePage() {
   const [editDoor, setEditDoor] = useState<Door | null>(null)
   const [detailDoor, setDetailDoor] = useState<DoorDetail | null>(null)
   const [showSearchModal, setShowSearchModal] = useState(false)
-  // Incrementing clearTempSignal tells MapComponent to remove the temporary marker
   const [clearTempSignal, setClearTempSignal] = useState(0)
-  // externalTrigger tells MapComponent to place a temp marker + recenter (used for search-modal flow)
   const [externalTrigger, setExternalTrigger] = useState<{ lat: number; lng: number; id: number } | null>(null)
   const [objectifPortes, setObjectifPortes] = useState<number | null>(null)
+  const [objectifVentes, setObjectifVentes] = useState<number | null>(null)
 
+  // Charge le profil + les objectifs du jour
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(data)
+
+      if (data?.role !== 'vendeur') return
       const today = new Date().toISOString().split('T')[0]
       const { data: objData } = await supabase
         .from('objectifs')
-        .select('valeur')
+        .select('type, valeur')
         .eq('vendeur_id', user.id)
         .eq('date', today)
-        .eq('type', 'portes')
-        .maybeSingle()
-      setObjectifPortes(objData?.valeur ?? null)
+      setObjectifPortes(objData?.find((o: any) => o.type === 'portes')?.valeur ?? null)
+      setObjectifVentes(objData?.find((o: any) => o.type === 'ventes')?.valeur ?? null)
     })
+  }, [])
+
+  // Subscription realtime sur les objectifs du vendeur connecté
+  // (si le manager change l'objectif pendant la journée, la carte se met à jour)
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+
+      channel = supabase
+        .channel(`objectifs-carte-${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'objectifs', filter: `vendeur_id=eq.${user.id}` },
+          async () => {
+            const today = new Date().toISOString().split('T')[0]
+            const { data: objData } = await supabase
+              .from('objectifs')
+              .select('type, valeur')
+              .eq('vendeur_id', user.id)
+              .eq('date', today)
+            setObjectifPortes(objData?.find((o: any) => o.type === 'portes')?.valeur ?? null)
+            setObjectifVentes(objData?.find((o: any) => o.type === 'ventes')?.valeur ?? null)
+          }
+        )
+        .subscribe()
+    })
+
+    return () => { if (channel) supabase.removeChannel(channel) }
   }, [])
 
   const loadDoors = useCallback(async () => {
@@ -67,67 +98,68 @@ export default function CartePage() {
     return () => { supabase.removeChannel(channel) }
   }, [loadDoors])
 
-  // Shared flow for opening "Nouvelle porte" — called by both long press and search modal
   const openNewDoorFlow = useCallback((lat: number, lng: number, address: string, approximate = false, triggerMap = false) => {
     setFormCoords({ lat, lng, address, approximate })
     setShowForm(true)
     if (triggerMap) {
-      // Tell MapComponent to place temp marker + recenter (search flow only)
       setExternalTrigger({ lat, lng, id: Date.now() })
     }
   }, [])
 
-  // MapComponent long press callback
   const handleLongPress = useCallback((lat: number, lng: number, address: string, approximate: boolean) => {
-    // MapComponent already placed the temp marker; just open the form
     openNewDoorFlow(lat, lng, address, approximate, false)
   }, [openNewDoorFlow])
 
-  // DoorForm autocomplete selection — update map position and stored coords
   const handleAddressSelect = useCallback((lat: number, lng: number, address: string) => {
     setFormCoords(prev => prev ? { ...prev, lat, lng, address, approximate: false } : null)
     setExternalTrigger({ lat, lng, id: Date.now() })
   }, [])
 
-  // Clic sur un pin → DoorDetailSheet (lecture seule)
   const handleDoorClick = useCallback((door: any) => {
     setDetailDoor(door as DoorDetail)
   }, [])
 
-  // Depuis DoorDetailSheet → ouvrir DoorForm en mode édition
   const handleEditFromDetail = useCallback(() => {
     if (!detailDoor) return
     setEditDoor(detailDoor as unknown as Door)
     setDetailDoor(null)
   }, [detailDoor])
 
-  // Mode création — insert géré par le parent
   const handleFormSave = async (formData: any) => {
     if (!profile || !formCoords) return
     await supabase.from('doors').insert({
       user_id: profile.id,
       latitude: formCoords.lat,
       longitude: formCoords.lng,
-      address: formCoords.address || null, // fallback; DoorForm's payload may override via formData.address
+      address: formCoords.address || null,
       ...formData,
     })
     setShowForm(false)
     setFormCoords(null)
-    setClearTempSignal(s => s + 1) // retire le marker temporaire
+    setClearTempSignal(s => s + 1)
     loadDoors()
   }
 
   const handleFormClose = useCallback(() => {
     setShowForm(false)
     setFormCoords(null)
-    setClearTempSignal(s => s + 1) // annulation → retire le marker temporaire
+    setClearTempSignal(s => s + 1)
   }, [])
 
-  // Mode édition — update géré par DoorForm, on refetch seulement
   const handleEditSave = useCallback(() => {
     setEditDoor(null)
     loadDoors()
   }, [loadDoors])
+
+  // ── Calculs pour le widget vendeur ────────────────────────────────────────
+  const today = new Date().toDateString()
+  const portesAujourdhui = profile?.role === 'vendeur'
+    ? doors.filter(d => d.user_id === profile.id && new Date(d.created_at).toDateString() === today).length
+    : 0
+  const ventesAujourdhui = profile?.role === 'vendeur'
+    ? doors.filter(d => d.user_id === profile.id && new Date(d.created_at).toDateString() === today && d.status === 'vendu').length
+    : 0
+  const hasObjectifs = objectifPortes !== null || objectifVentes !== null
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', fontFamily: 'Inter, sans-serif' }}>
@@ -139,68 +171,92 @@ export default function CartePage() {
         externalTrigger={externalTrigger}
       />
 
-      {/* Header flottant */}
-      <div style={{ position: 'absolute', top: 12, left: 12, right: 12, pointerEvents: 'none', zIndex: 1000 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+      {/* ── Header flottant ──────────────────────────────────────────────── */}
+      <div style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 1000, pointerEvents: 'none' }}>
+        {profile?.role === 'vendeur' ? (
+          /* Vendeur : widget combiné nom + objectifs du jour */
           <div style={{
-            background: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: 10,
-            padding: '8px 14px',
-            border: '1px solid rgba(229,231,235,0.8)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-          }}>
-            <span style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>
-              {profile?.full_name || '…'}
-            </span>
-          </div>
-          <div style={{
-            background: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: 10,
-            padding: '8px 12px',
-            border: '1px solid rgba(229,231,235,0.8)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-          }}>
-            <span style={{ color: '#374151', fontSize: 13, fontWeight: 500 }}>
-              {doors.length} portes
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Mod 11: Widget objectif vendeur */}
-      {profile?.role === 'vendeur' && objectifPortes !== null && (() => {
-        const portesAujourdhui = doors.filter((d) =>
-          d.user_id === profile.id &&
-          new Date(d.created_at).toDateString() === new Date().toDateString()
-        ).length
-        const progression = Math.min(portesAujourdhui / objectifPortes, 1)
-        return (
-          <div style={{
-            position: 'absolute', bottom: 80, left: 16, zIndex: 1000,
-            background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)',
+            background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
             borderRadius: 12, padding: '10px 14px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 160,
+            border: '1px solid rgba(229,231,235,0.8)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           }}>
-            <p style={{ fontSize: 11, color: '#6B7280', margin: '0 0 4px', fontWeight: 500 }}>
-              Objectif du jour
-            </p>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: '0 0 6px' }}>
-              {portesAujourdhui} / {objectifPortes} portes
-            </p>
-            <div style={{ background: '#E5E7EB', borderRadius: 4, height: 6 }}>
-              <div style={{
-                background: '#69C9CA', borderRadius: 4, height: 6,
-                width: `${Math.round(progression * 100)}%`,
-                transition: 'width 300ms ease',
-              }} />
+            {/* Ligne 1 : nom | portes aujourd'hui */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: hasObjectifs ? 10 : 0 }}>
+              <span style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>
+                {profile.full_name}
+              </span>
+              <span style={{ color: '#374151', fontSize: 13, fontWeight: 500 }}>
+                {portesAujourdhui} {portesAujourdhui === 1 ? 'porte' : 'portes'} auj.
+              </span>
+            </div>
+
+            {/* Ligne 2 : progress bars ou message vide */}
+            {hasObjectifs ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {objectifPortes !== null && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: '#6B7280' }}>Portes aujourd&apos;hui</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>
+                        {portesAujourdhui} / {objectifPortes}
+                      </span>
+                    </div>
+                    <div style={{ background: '#E5E7EB', borderRadius: 3, height: 5 }}>
+                      <div style={{
+                        background: portesAujourdhui >= objectifPortes ? '#10B981' : '#69C9CA',
+                        borderRadius: 3, height: 5,
+                        width: `${Math.min(objectifPortes > 0 ? Math.round(portesAujourdhui / objectifPortes * 100) : 0, 100)}%`,
+                        transition: 'width 300ms ease',
+                      }} />
+                    </div>
+                  </div>
+                )}
+                {objectifVentes !== null && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: '#6B7280' }}>Ventes aujourd&apos;hui</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>
+                        {ventesAujourdhui} / {objectifVentes}
+                      </span>
+                    </div>
+                    <div style={{ background: '#E5E7EB', borderRadius: 3, height: 5 }}>
+                      <div style={{
+                        background: ventesAujourdhui >= objectifVentes ? '#10B981' : '#8B5CF6',
+                        borderRadius: 3, height: 5,
+                        width: `${Math.min(objectifVentes > 0 ? Math.round(ventesAujourdhui / objectifVentes * 100) : 0, 100)}%`,
+                        transition: 'width 300ms ease',
+                      }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p style={{ color: '#9CA3AF', fontSize: 12, margin: 0 }}>Aucun objectif fixé</p>
+            )}
+          </div>
+        ) : (
+          /* Manager / non chargé : deux pills séparées */
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)',
+              borderRadius: 10, padding: '8px 14px',
+              border: '1px solid rgba(229,231,235,0.8)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            }}>
+              <span style={{ color: '#111827', fontWeight: 600, fontSize: 14 }}>{profile?.full_name || '…'}</span>
+            </div>
+            <div style={{
+              background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(12px)',
+              borderRadius: 10, padding: '8px 12px',
+              border: '1px solid rgba(229,231,235,0.8)', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            }}>
+              <span style={{ color: '#374151', fontSize: 13, fontWeight: 500 }}>{doors.length} portes</span>
             </div>
           </div>
-        )
-      })()}
+        )}
+      </div>
 
-      {/* Bouton Nouvelle porte → ouvre le modal de recherche d'adresse */}
+      {/* ── Bouton Nouvelle porte ─────────────────────────────────────────── */}
       <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 1000 }}>
         <button
           onClick={() => setShowSearchModal(true)}
@@ -219,18 +275,16 @@ export default function CartePage() {
         </button>
       </div>
 
-      {/* Modal de recherche d'adresse */}
       {showSearchModal && (
         <AddressSearchModal
           onSelect={(lat, lng, address) => {
             setShowSearchModal(false)
-            openNewDoorFlow(lat, lng, address, false, true) // approximate=false (confirmed), triggerMap=true
+            openNewDoorFlow(lat, lng, address, false, true)
           }}
           onClose={() => setShowSearchModal(false)}
         />
       )}
 
-      {/* Formulaire création */}
       {showForm && formCoords && profile && (
         <DoorForm
           coords={formCoords}
@@ -242,7 +296,6 @@ export default function CartePage() {
         />
       )}
 
-      {/* Fiche de consultation — clic sur un pin */}
       {detailDoor && (
         <DoorDetailSheet
           door={detailDoor}
@@ -252,7 +305,6 @@ export default function CartePage() {
         />
       )}
 
-      {/* Formulaire édition — via bouton "Modifier" dans la fiche */}
       {editDoor && profile && (
         <DoorForm
           coords={{ lat: editDoor.latitude, lng: editDoor.longitude }}

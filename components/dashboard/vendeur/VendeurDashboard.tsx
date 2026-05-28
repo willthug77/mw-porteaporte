@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
@@ -215,7 +215,7 @@ export default function VendeurDashboard() {
 
       <div style={{ padding: '20px 16px 40px' }}>
         {/* Stats grid 2x2 */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
           <StatCard
             title="Portes"
             value={stats.portesToday}
@@ -231,10 +231,9 @@ export default function VendeurDashboard() {
             color="#10B981"
           />
           <StatCard
-            title="Conversion"
-            value={`${stats.tauxConversion}%`}
+            title="Taux clos."
+            value={stats.tauxClosing !== null ? `${stats.tauxClosing}%` : 'N/A'}
             icon={<Percent size={20} />}
-            delta={Math.round((stats.tauxConversion - stats.tauxConversionHier) * 10) / 10}
             color="#3B82F6"
           />
           <StatCard
@@ -244,6 +243,24 @@ export default function VendeurDashboard() {
             delta={stats.revenusToday !== stats.revenusHier ? stats.revenusToday - stats.revenusHier : undefined}
             color="#8B5CF6"
           />
+        </div>
+
+        {/* Ligne réponses + taux de réponse */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <div style={{
+            flex: 1, background: '#FFFFFF', borderRadius: 10, padding: '10px 14px',
+            border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          }}>
+            <p style={{ color: '#6B7280', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Réponses</p>
+            <p style={{ color: '#111827', fontWeight: 700, fontSize: 20, margin: 0 }}>{stats.reponsesToday}</p>
+          </div>
+          <div style={{
+            flex: 1, background: '#FFFFFF', borderRadius: 10, padding: '10px 14px',
+            border: '1px solid #E5E7EB', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          }}>
+            <p style={{ color: '#6B7280', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Taux répons.</p>
+            <p style={{ color: '#111827', fontWeight: 700, fontSize: 20, margin: 0 }}>{stats.tauxReponse}%</p>
+          </div>
         </div>
 
         {/* Mod 2: Mes objectifs du jour */}
