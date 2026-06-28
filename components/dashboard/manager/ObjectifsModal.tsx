@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { upsertObjectifTyped } from '@/lib/queries/dashboard'
+import { isSeller } from '@/lib/roles'
 
 interface VendeurState {
   id: string
@@ -36,7 +37,7 @@ export default function ObjectifsModal({ onClose }: Props) {
       .from('profiles')
       .select('id, full_name, color, role')
 
-    const vendeurProfiles = (allProfiles ?? []).filter((p: any) => p.role !== 'manager')
+    const vendeurProfiles = (allProfiles ?? []).filter((p: any) => isSeller(p.role))
 
     const vendeurIds = vendeurProfiles.map((v: any) => v.id)
 

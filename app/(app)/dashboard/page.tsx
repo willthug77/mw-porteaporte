@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import SkeletonDashboard from '@/components/dashboard/shared/SkeletonDashboard'
 import VendeurDashboard from '@/components/dashboard/vendeur/VendeurDashboard'
 import ManagerDashboard from '@/components/dashboard/manager/ManagerDashboard'
+import { isManager } from '@/lib/roles'
 
 export default function DashboardPage() {
   const [role, setRole] = useState<string | null>(null)
@@ -21,7 +22,7 @@ export default function DashboardPage() {
         .eq('id', user.id)
         .single()
         .then(({ data }) => {
-          setRole(data?.role ?? 'vendeur')
+          setRole(data?.role ?? 'rep')
           setLoading(false)
         })
     })
@@ -29,6 +30,6 @@ export default function DashboardPage() {
 
   if (loading) return <SkeletonDashboard />
 
-  if (role === 'manager') return <ManagerDashboard />
+  if (isManager(role)) return <ManagerDashboard />
   return <VendeurDashboard />
 }

@@ -1,5 +1,6 @@
 'use client'
 import { supabase } from '@/lib/supabase'
+import { isSeller } from '@/lib/roles'
 
 // SQL to create objectifs table (run in Supabase SQL editor if not exists):
 // CREATE TABLE IF NOT EXISTS objectifs (
@@ -204,7 +205,7 @@ export async function getAllVendeurs(): Promise<any[]> {
     .from('profiles')
     .select('id, full_name, email, color, created_at, daily_goal, commission_type, commission_value, role')
 
-  return (data ?? []).filter((p: any) => p.role !== 'manager')
+  return (data ?? []).filter((p: any) => isSeller(p.role))
 }
 
 export async function getObjectifsAujourdhui(date: string): Promise<Array<{ vendeur_id: string; type: string; valeur: number }>> {
@@ -279,7 +280,7 @@ export async function getVendeurStats(): Promise<any[]> {
   // Fallback JS si la vue n'est pas encore créée en base
   // (exécuter supabase/migration_dashboard.sql dans Supabase SQL Editor pour corriger)
   const [{ data: vendeurs }, { data: doors }] = await Promise.all([
-    supabase.from('profiles').select('id, full_name, color').neq('role', 'manager'),
+    supabase.from('profiles').select('id, full_name, color').in('role', ['rep', 'vendeur']),
     supabase.from('doors').select('id, user_id, status, contract_value, created_at'),
   ])
 

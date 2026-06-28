@@ -6,6 +6,7 @@ import DoorForm, { Door } from '@/components/DoorForm'
 import DoorDetailSheet, { DoorDetail } from '@/components/DoorDetailSheet'
 import AddressSearchModal from '@/components/AddressSearchModal'
 import { Plus } from 'lucide-react'
+import { isSeller } from '@/lib/roles'
 
 const MapComponent = dynamic(
   () => import('@/components/MapComponent').then(mod => ({ default: mod.default })),
@@ -39,7 +40,7 @@ export default function CartePage() {
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(data)
 
-      if (data?.role !== 'vendeur') return
+      if (!isSeller(data?.role)) return
       const today = new Date().toISOString().split('T')[0]
       const { data: objData } = await supabase
         .from('objectifs')
@@ -55,9 +56,10 @@ export default function CartePage() {
   // (si le manager change l'objectif pendant la journée, la carte se met à jour)
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null
+    let cancelled = false
 
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
+      if (!user || cancelled) return
 
       channel = supabase
         .channel(`objectifs-carte-${user.id}`)
@@ -78,7 +80,10 @@ export default function CartePage() {
         .subscribe()
     })
 
-    return () => { if (channel) supabase.removeChannel(channel) }
+    return () => {
+      cancelled = true
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [])
 
   const loadDoors = useCallback(async () => {
@@ -153,10 +158,10 @@ export default function CartePage() {
 
   // ── Calculs pour le widget vendeur ────────────────────────────────────────
   const today = new Date().toDateString()
-  const portesAujourdhui = profile?.role === 'vendeur'
+  const portesAujourdhui = isSeller(profile?.role)
     ? doors.filter(d => d.user_id === profile.id && new Date(d.created_at).toDateString() === today).length
     : 0
-  const ventesAujourdhui = profile?.role === 'vendeur'
+  const ventesAujourdhui = isSeller(profile?.role)
     ? doors.filter(d => d.user_id === profile.id && new Date(d.created_at).toDateString() === today && d.status === 'vendu').length
     : 0
   const hasObjectifs = objectifPortes !== null || objectifVentes !== null
@@ -173,7 +178,7 @@ export default function CartePage() {
 
       {/* ── Header flottant ──────────────────────────────────────────────── */}
       <div style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 1000, pointerEvents: 'none' }}>
-        {profile?.role === 'vendeur' ? (
+        {isSeller(profile?.role) ? (
           /* Vendeur : widget combiné nom + objectifs du jour */
           <div style={{
             background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',

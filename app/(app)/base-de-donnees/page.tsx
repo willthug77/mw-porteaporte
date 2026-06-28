@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { X, Phone, MapPin, Search, Plus, User, ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { getPinBadge } from '@/lib/colors'
 import DoorForm from '@/components/DoorForm'
+import { isManager } from '@/lib/roles'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -438,8 +439,8 @@ export default function BaseDeDonneesPage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { setLoading(false); return }
       const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-      setRole(data?.role ?? 'vendeur')
-      if (data?.role === 'manager') await loadClients()
+      setRole(data?.role ?? 'rep')
+      if (isManager(data?.role)) await loadClients()
       setLoading(false)
     })
   }, [loadClients])
@@ -478,7 +479,7 @@ export default function BaseDeDonneesPage() {
     </div>
   )
 
-  if (role !== 'manager') return (
+  if (!isManager(role)) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: 'Inter, sans-serif', padding: 32 }}>
       <User size={48} color="#9CA3AF" />
       <p style={{ color: '#374151', fontWeight: 600, fontSize: 16, margin: '16px 0 4px' }}>Accès réservé au manager</p>

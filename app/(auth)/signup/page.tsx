@@ -51,7 +51,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'vendeur' | 'manager'>('vendeur')
+  const [role, setRole] = useState<'rep' | 'admin'>('rep')
   const [color, setColor] = useState(VENDOR_COLORS[0])
   const [managerCode, setManagerCode] = useState('')
   const [error, setError] = useState('')
@@ -66,25 +66,17 @@ export default function SignupPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    if (role === 'manager' && managerCode !== 'MW2024MANAGER') {
-      setError('Code manager invalide')
-      setLoading(false)
-      return
-    }
-    const { data: authData, error } = await supabase.auth.signUp({
-      email, password,
-      options: { data: { full_name: fullName, role, color } }
+    // Le rôle est validé/posé CÔTÉ SERVEUR (le code manager n'est plus en clair ici).
+    const res = await fetch('/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, fullName, color, role, managerCode }),
     })
-    if (error) { setError(error.message); setLoading(false); return }
-    // Fallback upsert — garantit la création du profil même si le trigger DB est absent
-    if (authData?.user) {
-      await supabase.from('profiles').upsert({
-        id: authData.user.id,
-        full_name: fullName,
-        role,
-        color,
-      }, { onConflict: 'id' })
-    }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(data?.error || "Échec de l'inscription"); setLoading(false); return }
+    // Connexion immédiate après création
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInErr) { setError(signInErr.message); setLoading(false); return }
     router.push('/carte')
   }
 
@@ -156,7 +148,7 @@ export default function SignupPage() {
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 8 }}>Rôle</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {(['vendeur', 'manager'] as const).map(r => (
+                {(['rep', 'admin'] as const).map(r => (
                   <button
                     key={r}
                     type="button"
@@ -175,13 +167,13 @@ export default function SignupPage() {
                       minHeight: 44,
                     }}
                   >
-                    {r === 'vendeur' ? 'Vendeur' : 'Manager'}
+                    {r === 'rep' ? 'Vendeur' : 'Manager'}
                   </button>
                 ))}
               </div>
             </div>
 
-            {role === 'manager' && (
+            {role === 'admin' && (
               <div>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Code manager</label>
                 <Input type="password" placeholder="Code d'accès manager" value={managerCode} onChange={e => setManagerCode(e.target.value)} />

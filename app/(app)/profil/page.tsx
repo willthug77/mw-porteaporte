@@ -9,6 +9,7 @@ import ColorPicker from '@/components/profil/ColorPicker'
 import AppSettingsForm from '@/components/profil/AppSettingsForm'
 import MapSettingsForm from '@/components/profil/MapSettingsForm'
 import SaleSettingsForm from '@/components/profil/SaleSettingsForm'
+import { isManager } from '@/lib/roles'
 
 // ─── helpers ────────────────────────────────────────────────
 
@@ -214,7 +215,7 @@ export default function ProfilPage() {
 
   if (loading || !profile) return <Spinner />
 
-  const isManager = profile.role === 'manager'
+  const userIsManager = isManager(profile.role)
   const vendeurs  = allProfiles.filter(p => p.id !== profile.id)
 
   // Colors used by everyone except the current user
@@ -277,7 +278,7 @@ export default function ProfilPage() {
   // MANAGER VIEW
   // ─────────────────────────────────────────────────────────
 
-  if (isManager) {
+  if (userIsManager) {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#F1F2F2', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
         {/* Header */}

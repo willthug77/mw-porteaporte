@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { X, Edit2, MapPin, User, Calendar, FileText, Bell, Brain } from 'lucide-react'
 import AddressDisplay from '@/components/AddressDisplay'
 import { supabase } from '@/lib/supabase'
+import { isManager } from '@/lib/roles'
 
 export interface DoorDetail {
   id: string
@@ -320,7 +321,7 @@ export default function DoorDetailSheet({ door, onClose, onEdit, userRole }: Pro
           )}
 
           {/* Coaching IA — manager only */}
-          {userRole === 'manager' && (
+          {isManager(userRole) && (
             <>
               <Separator />
               <SectionTitle icon={<Brain size={14} />} label="Coaching IA" />
